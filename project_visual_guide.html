@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RAG Architecture (For Junior Devs)</title>
+  <style>
+    :root {
+      --bg: #1e1e1e;
+      --surface: #252526;
+      --border: #3c3c3c;
+      --text: #d4d4d4;
+      --text-dim: #858585;
+      --accent-keyword: #569cd6;
+      --accent-string: #ce9178;
+      --accent-function: #dcdcaa;
+      --accent-control: #c586c0;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Consolas', 'Courier New', monospace;
+      margin: 0; padding: 2rem;
+      line-height: 1.6;
+    }
+    h1 {
+      text-align: center;
+      font-size: 2rem;
+      color: var(--accent-control);
+      margin-bottom: 0.5rem;
+    }
+    p.subtitle {
+      text-align: center;
+      color: var(--accent-string);
+      max-width: 600px;
+      margin: 0 auto 3rem auto;
+      font-size: 1rem;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      max-width: 1100px;
+      margin: 0 auto 3rem auto;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);
+    }
+    .card h3 { 
+      margin-top: 0; 
+      color: var(--accent-function); 
+      font-size: 1.3rem; 
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+    strong { color: var(--accent-keyword); font-weight: normal; }
+    
+    code {
+      background: rgba(0,0,0,0.5);
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.9em;
+      color: var(--accent-string);
+    }
+
+    .mermaid-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 2rem;
+      max-width: 1100px;
+      margin: 0 auto;
+      text-align: center;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>const RAG_ARCHITECTURE = {</h1>
+  <p class="subtitle">"Retrieval-Augmented Generation" mapped to standard dev concepts.</p>
+
+  <div class="grid">
+    <div class="card">
+      <h3>1. Chunking (<code>index_builder.py</code>)</h3>
+      <p><strong>The Problem:</strong> You have a massive 10MB text log, but an LLM API request has a strict payload size limit (called the "context window"), which takes exactly ~4000 tokens.</p>
+      <p><strong>The Solution:</strong> The <code>SentenceSplitter</code> takes strings and cuts them into 512-word chunks. It slightly overlaps the chunks so you don't cut a sentence or thought perfectly in half, losing context.</p>
+    </div>
+    <div class="card">
+      <h3>2. Embeddings & VectorDB</h3>
+      <p><strong>The Problem:</strong> How do you run a semantic search for "dogs" without writing a massive SQL <code>LIKE '%犬%' OR '%puppy%'</code> query?</p>
+      <p><strong>The Solution:</strong> We pass every chunk object to an Embedding Model (`BGE-small`). This model acts like a hash function that returns an array of floats <code>[0.1, -0.4, 0.9...]</code> describing the "meaning". We save this chunk+float array to ChromaDB (a VectorDB). Searches are just computing cosine similarity (distance) between float arrays!</p>
+    </div>
+    <div class="card">
+      <h3>3. Q&A Generation (<code>qa.py</code>)</h3>
+      <p><strong>The Workflow:</strong> User queries something. We embed their prompt into a float array. We search ChromaDB for the 5 most similar chunks. We pull those out.</p>
+      <p><strong>The Prompt Injection:</strong> We literally just concatenate strings: <code>"Answer the question using this context: " + chunks + " \n\n Question: " + user_query</code>, and send this single massive string to a local LLM API (Ollama).</p>
+    </div>
+  </div>
+
+  <div class="mermaid-wrap">
+    <pre class="mermaid">
+      flowchart TD
+        %% Define styles
+        classDef function fill:#252526,stroke:#dcdcaa,stroke-width:2px,color:#d4d4d4,rx:4,ry:4
+        classDef database fill:#252526,stroke:#569cd6,stroke-width:2px,color:#d4d4d4,rx:4,ry:4
+        classDef component fill:#252526,stroke:#c586c0,stroke-width:2px,color:#d4d4d4,rx:4,ry:4
+
+        subgraph Ingestion_Pipeline ["1. Build Index (Run Once)"]
+            A["Raw Data<br/>(Strings)"]:::component --> B["Chunking<br/>(SentenceSplitter)"]:::function
+            B --> C["HuggingFaceEmbedding<br/>(Returns float[])"]:::function
+            C --> D[("VectorDB / ChromaDB<br/>(Saves string + float[])")]:::database
+        end
+
+        subgraph User_Query_Flow ["2. Query Flow (Per Request)"]
+            E["User Query<br/>(String)"]:::component --> F["HuggingFaceEmbedding<br/>(Returns float[])"]:::function
+            F -.->|Cosine Similarity Search| D
+            D -.->|Returns Top-K Chunks| G["Prompt Builder<br/>(qa.py)"]:::function
+            E --> G
+            G -->|String Concatenation| H["Local LLM API<br/>(Ollama / llama3.2)"]:::function
+            H --> I["Final Answer<br/>(String)"]:::component
+        end
+    </pre>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'base',
+      themeVariables: {
+        darkMode: true,
+        background: 'transparent',
+        primaryTextColor: '#d4d4d4',
+        lineColor: '#569cd6',
+        fontFamily: 'Consolas, Courier New, monospace'
+      }
+    });
+  </script>
+</body>
+</html>
