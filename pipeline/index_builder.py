@@ -77,12 +77,13 @@ def configure_settings():
     print(f"[debug] Loading Ollama with model='{config.OLLAMA_MODEL}'")
     # Settings.llm = Ollama(model=config.OLLAMA_MODEL, base_url=config.OLLAMA_BASE_URL)
     Settings.llm = Ollama(
-    model="phi3:mini",           # hardcoded, not from config, just to test
+    model=config.OLLAMA_MODEL,           # hardcoded, not from config, just to test
     base_url=config.OLLAMA_BASE_URL,
     request_timeout=600.0,
-    context_window=2048,    # 👈 hard cap, phi3:mini supports 4096 max
-    num_output=256,         # 👈 cap the response length too
-)
+    context_window=128000,    # 👈 hard cap, phi3:mini supports 4096 max
+    num_output=2048,         # 👈 cap the response length too
+    )
+
     # Inspect the actual object
     print(f"[debug] Settings.llm object model = '{Settings.llm.model}'")
     print(f"[debug] Settings.llm type = {type(Settings.llm)}")
