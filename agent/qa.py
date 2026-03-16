@@ -49,22 +49,26 @@ def ask(question: str, index: VectorStoreIndex) -> dict:
     """
     retriever = index.as_retriever(similarity_top_k=config.TOP_K)
     nodes = retriever.retrieve(question)
-
+    # print(f"[qa] Retrieved {len(nodes)} relevant chunks for the question: '{question}'")
     if not nodes:
         return {
             "answer": "No relevant documents found. Try ingesting some documents first.",
             "sources": []
         }
-
+    # print(f"[qa] Sources of retrieved chunks:")
+    # for node in nodes:
+        # print(f"   - {format_source(node)}")
     # Build context string with source labels
     context_parts = [format_source(n) for n in nodes]
     context_str = "\n\n---\n\n".join(context_parts)
-
+    # print(f"[qa] Built context string for LLM (truncated to 1000 chars):\n{context_str[:1000]}...\n")
     # Build prompt manually and call LLM
     from llama_index.core import Settings
+    print(f"[debug] LLM at query time = {Settings.llm.model}") 
     prompt = QA_PROMPT.format(context_str=context_str, query_str=question)
+    # print(f"[qa] Final prompt to LLM (truncated to 1000 chars):\n{prompt[:1000]}...\n")
     response = Settings.llm.complete(prompt)
-
+    # print(f"[qa] Raw response from LLM:\n{response}\n")
     # Collect unique source labels
     sources = []
     for node in nodes:

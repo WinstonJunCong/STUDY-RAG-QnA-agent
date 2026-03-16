@@ -13,15 +13,15 @@ EMBED_MODEL = "BAAI/bge-small-en-v1.5"
 #   "mistral"      → fast, great for Q&A
 #   "llama3.2"     → best overall quality
 #   "phi3"         → lightweight, good for low-RAM machines
-OLLAMA_MODEL = "llama3.2"
+OLLAMA_MODEL = "phi3:mini" #"llama3.2"
 OLLAMA_BASE_URL = "http://localhost:11434"
 
 # ---------------- Chunking ----------------
-CHUNK_SIZE = 512        # tokens per chunk
-CHUNK_OVERLAP = 50      # overlap between chunks (helps context continuity)
+CHUNK_SIZE = 256        # tokens per chunk
+CHUNK_OVERLAP = 20      # overlap between chunks (helps context continuity)
 
 # ---------------- Retrieval ----------------
-TOP_K = 5               # how many chunks to retrieve per question
+TOP_K = 2               # how many chunks to retrieve per question
 
 # ---------------- Storage ----------------
 CHROMA_PATH = "./chroma_db"         # where ChromaDB persists on disk
