@@ -65,7 +65,8 @@ def main():
         if result["sources"]:
             sources_text = Text()
             for i, src in enumerate(result["sources"], 1):
-                sources_text.append(f"  {i}. {src}\n", style="dim")
+                # We use markup=True here because qa.py is returning rich [link=...] syntax
+                sources_text.append(Text.from_markup(f"  {i}. {src}\n", style="dim"))
             console.print(Panel(
                 sources_text,
                 title="[bold blue]📎 Sources[/bold blue]",

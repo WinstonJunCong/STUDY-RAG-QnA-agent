@@ -71,23 +71,28 @@ def configure_settings():
     Set global LlamaIndex settings to use free local models only.
     Call this once before building or querying the index.
     """
-    print_diagnostics()  # 👈 debug info printed here before models load
+    if config.DEBUG_LLM:
+        print_diagnostics()  # 👈 debug info printed here before models load
 
     Settings.embed_model = HuggingFaceEmbedding(model_name=config.EMBED_MODEL)
-    print(f"[debug] Loading Ollama with model='{config.OLLAMA_MODEL}'")
-    # Settings.llm = Ollama(model=config.OLLAMA_MODEL, base_url=config.OLLAMA_BASE_URL)
+    # print(f"[debug] Loading Ollama with model='{config.OLLAMA_MODEL}'")
     Settings.llm = Ollama(
-    model=config.OLLAMA_MODEL,           # hardcoded, not from config, just to test
-    base_url=config.OLLAMA_BASE_URL,
-    request_timeout=600.0,
-    context_window=128000,    # 👈 hard cap, phi3:mini supports 4096 max
-    num_output=2048,         # 👈 cap the response length too
-    )
+        model=config.OLLAMA_MODEL, 
+        base_url=config.OLLAMA_BASE_URL,
+        request_timeout=120.0,
+        )
+    # Settings.llm = Ollama(
+    # model=config.OLLAMA_MODEL,           # hardcoded, not from config, just to test
+    # base_url=config.OLLAMA_BASE_URL,
+    # request_timeout=600.0,
+    # context_window=128000,    # 👈 hard cap, phi3:mini supports 4096 max
+    # num_output=2048,         # 👈 cap the response length too
+    # )
 
     # Inspect the actual object
-    print(f"[debug] Settings.llm object model = '{Settings.llm.model}'")
-    print(f"[debug] Settings.llm type = {type(Settings.llm)}")
-    print(f"[debug] Settings.llm full config = {Settings.llm.__dict__}")
+    # print(f"[debug] Settings.llm object model = '{Settings.llm.model}'")
+    # print(f"[debug] Settings.llm type = {type(Settings.llm)}")
+    # print(f"[debug] Settings.llm full config = {Settings.llm.__dict__}")
     Settings.chunk_size = config.CHUNK_SIZE
     Settings.chunk_overlap = config.CHUNK_OVERLAP
     print(f"[settings] Embed: {config.EMBED_MODEL} | LLM: {config.OLLAMA_MODEL}")

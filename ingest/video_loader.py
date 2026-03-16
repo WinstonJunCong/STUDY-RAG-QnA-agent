@@ -59,6 +59,7 @@ def load_video(path: str, model_size: str = "base") -> list[Document]:
                 "filename": file_path.name,
                 "timestamp_seconds": start,
                 "timestamp_label": timestamp_label,
+                "file_path": str(file_path.absolute()),
             }
         ))
 

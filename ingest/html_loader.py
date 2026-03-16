@@ -34,6 +34,7 @@ def load_html(url: str) -> Document | None:
                 "source": url,
                 "type": "html",
                 "title": title,
+                "file_path": url,
             }
         )
 

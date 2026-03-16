@@ -3,11 +3,11 @@ from llama_index.llms.ollama import Ollama
 
 try:
     llm = Ollama(
-        model="phi3:mini",
+        model="llama3.2",
         base_url=config.OLLAMA_BASE_URL,
         request_timeout=120.0,
         context_window=2048,
-        num_output=256,
+        num_output=256, 
     )
     print("Testing connection to Ollama...")
     res = llm.complete("Hello")

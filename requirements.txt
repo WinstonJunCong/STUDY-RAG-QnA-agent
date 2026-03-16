@@ -6,6 +6,9 @@ llama-index-vector-stores-chroma>=0.1.0
 llama-index-embeddings-huggingface>=0.2.0
 sentence-transformers>=2.7.0
 
+# Reranker (second-pass relevance scoring)
+llama-index-postprocessor-flag-embedding-reranker>=0.1.0
+
 # Free local LLM via Ollama
 llama-index-llms-ollama>=0.1.0
 
