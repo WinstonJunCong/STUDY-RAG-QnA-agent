@@ -13,7 +13,7 @@ EMBED_MODEL = "BAAI/bge-base-en-v1.5"
 #   "mistral"      → fast, great for Q&A
 #   "llama3.2"     → best overall quality
 #   "phi3"         → lightweight, good for low-RAM machines
-OLLAMA_MODEL = "llama3.2" #"phi3:mini"
+OLLAMA_MODEL = "mistral" #"mistral-nemo" #"llama3.2" #"phi3:mini"
 OLLAMA_BASE_URL = "http://localhost:11434"
 
 # ---------------- Chunking ----------------
@@ -28,7 +28,7 @@ CHROMA_PATH = "./chroma_db"         # where ChromaDB persists on disk
 CHROMA_COLLECTION = "qna_docs"
 
 # ---------------- Debugging ----------------
-DEBUG_LLM = False      # Set to True to print exact prompts and raw LLM responses to the console
+DEBUG_LLM = True      # Set to True to print exact prompts and raw LLM responses to the console
 
 # ---------------- Advanced Retrieval ----------------
 USE_HYDE = True                            # HyDE: embed a hypothetical answer instead of raw question

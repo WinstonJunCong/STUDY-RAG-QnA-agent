@@ -14,8 +14,12 @@ QA_PROMPT = PromptTemplate(
     "## RULES\n"
     "- Write in plain paragraphs, no bullet points or numbered lists\n"
     "- No markdown formatting (no **bold**, *italics*, # headers, etc.)\n"
-    "- If the answer is not in the sources, say \"I couldn't find that in the provided documents.\"\n"
-    "- Mention the source in parentheses after relevant sentences: (Source: filename)\n\n"
+    "- If the answer is not in the sources, say \"I couldn't find that in the provided documents.\" ONLY. Do NOT suggest alternatives, workarounds, or other products.\n"
+    "- If the answer is \"No\", state it clearly and prominently in the first sentence before adding any additional context.\n"
+    "- Mention the source in parentheses after relevant sentences: (Source: filename)\n"
+    "- If multiple sources provide DIFFERENT information, present BOTH versions and explicitly note they conflict\n"
+    "- Extract ALL relevant details from ALL sources, even if spread across multiple documents\n"
+    "- Never add clarifications, caveats, or inferences not explicitly stated in sources\n\n"
     "Sources:\n"
     "---------------------\n"
     "{context_str}\n"
@@ -80,18 +84,18 @@ def ask(question: str, index: VectorStoreIndex) -> dict:
     retriever = index.as_retriever(similarity_top_k=config.TOP_K)
 
     if getattr(config, "USE_HYDE", False):
-        # HyDE: ask the LLM to generate a hypothetical ideal answer,
-        # then embed THAT instead of the raw question for better vocab matching
+        # HyDE: generate a hypothetical answer, embed it, then retrieve with YOUR retriever
         from llama_index.core.indices.query.query_transform.base import HyDEQueryTransform
-        from llama_index.core.query_engine import TransformQueryEngine
+        from llama_index.core.schema import QueryBundle
 
         hyde = HyDEQueryTransform(include_original=True)
-        base_engine = index.as_query_engine(similarity_top_k=config.TOP_K)
-        hyde_engine = TransformQueryEngine(base_engine, hyde)
+        transformed = hyde(QueryBundle(question))  # generates hypothetical doc
 
-        # Use HyDE engine to get nodes — we have to retrieve via query then extract nodes
-        hyde_response = hyde_engine.query(question)
-        nodes = hyde_response.source_nodes
+        if getattr(config, "DEBUG_LLM", False):
+            print(f"[hyde] Hypothetical doc: {transformed.embedding_strs[0][:300]}...")
+
+        # Use YOUR retriever with the transformed query
+        nodes = retriever.retrieve(transformed.embedding_strs[0])
         print(f"[qa] HyDE retrieved {len(nodes)} chunks")
     else:
         nodes = retriever.retrieve(question)
