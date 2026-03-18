@@ -8,48 +8,48 @@ from llama_index.core.prompts import PromptTemplate
 import config
 
 QA_PROMPT = PromptTemplate(
-    "You are a strict document-based assistant. "
-    "You ONLY answer using information explicitly stated in the source excerpts provided below. "
-    "You do NOT infer, assume, or use any external knowledge.\n\n"
-
-    "## ANSWER RULES\n"
-    "- If the answer is fully covered in the sources: answer completely and accurately.\n"
-    "- If the answer spans multiple sources: combine ALL relevant information from ALL sources into one complete answer.\n"
-    "- If sources contain conflicting information: present BOTH versions, state which source says what, and flag the conflict.\n"
-    "- If the question has multiple parts: answer EVERY part separately.\n"
-    "- If information exists across multiple plans, tiers, or options: list ALL of them — never summarize into just one.\n"
-    "- If the answer is not found in ANY source: respond only with 'I couldn't find that in the provided documents.'\n"
-    "- Do NOT add disclaimers, opinions, suggestions, or information not present in the sources.\n\n"
-
-    "## CITATION RULES\n"
-    "- Every sentence or claim MUST be followed immediately by its source citation.\n"
-    "- Use the EXACT source label as it appears in the sources below — do not modify, shorten, or rephrase it.\n"
-    "- If a claim is supported by multiple sources, list all of them: [FILE: a.md][FILE: b.md]\n"
-    "- Do not group all citations at the end — cite inline after each individual claim.\n"
-    "- Never invent, guess, or paraphrase a source label.\n\n"
-    "Never generate URLs, anchor links, or file paths that are not explicitly present in the sources.\n"
-    
-    "## CITATION FORMAT (use exactly as shown)\n"
-    "  [FILE: filename]         → for document files\n"
-    "  [VIDEO: filename @ time] → for video sources\n"
-    "  [WEB: title]             → for web sources\n\n"
-
+    "You are a helpful customer support assistant. "
+    "Answer the question using only the information from the sources below. "
+    "Keep your answer natural and conversational - like explaining to a colleague.\n\n"
+    "## RULES\n"
+    "- Write in plain paragraphs, no bullet points or numbered lists\n"
+    "- No markdown formatting (no **bold**, *italics*, # headers, etc.)\n"
+    "- If the answer is not in the sources, say \"I couldn't find that in the provided documents.\"\n"
+    "- Mention the source in parentheses after relevant sentences: (Source: filename)\n\n"
     "Sources:\n"
     "---------------------\n"
     "{context_str}\n"
     "---------------------\n\n"
-
     "Question: {query_str}\n\n"
-
     "Answer:"
 )
 
 
+import re
+
+
+def strip_markdown(text: str) -> str:
+    """Remove markdown formatting from text."""
+    text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+    text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+    text = re.sub(r'\*([^*]+)\*', r'\1', text)
+    text = re.sub(r'__([^_]+)__', r'\1', text)
+    text = re.sub(r'_([^_]+)_', r'\1', text)
+    text = re.sub(r'^\s*[-*+]\s+', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^\s*\d+\.\s+', '', text, flags=re.MULTILINE)
+    text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
+
 def format_source(node) -> str:
-    """Format a retrieved node with its source label."""
+    """Format a retrieved node with its source label, stripping markdown."""
     meta = node.metadata
     source = meta.get("source", "unknown")
     doc_type = meta.get("type", "")
+
+    raw_text = node.text.strip()
+    clean_text = strip_markdown(raw_text)
 
     if doc_type == "video":
         ts = meta.get("timestamp_label", "?")
@@ -58,9 +58,8 @@ def format_source(node) -> str:
         label = f"[WEB: {meta.get('title', source)}]"
     else:
         label = f"[FILE: {meta.get('filename', source)}]"
-        # label = f"[FILE: {meta.get('file_path', source)}]"
 
-    return f"{label}\n{node.text.strip()}"
+    return f"{label}\n{clean_text}"
 
 
 def ask(question: str, index: VectorStoreIndex) -> dict:
@@ -107,14 +106,13 @@ def ask(question: str, index: VectorStoreIndex) -> dict:
     # ── Step 2: Rerank (optional second-pass scoring) ─────────────────────────
     if getattr(config, "USE_RERANKER", False):
         try:
-            from llama_index.postprocessor.flag_embedding_reranker import FlagEmbeddingReranker
-            from llama_index.core.schema import QueryBundle
+            from llama_index.core.postprocessor import SentenceTransformerRerank
 
-            reranker = FlagEmbeddingReranker(
+            reranker = SentenceTransformerRerank(
                 model=config.RERANKER_MODEL,
                 top_n=config.TOP_N,
             )
-            nodes = reranker.postprocess_nodes(nodes, query_bundle=QueryBundle(query_str=question))
+            nodes = reranker.postprocess_nodes(nodes, query_str=question)
             print(f"[qa] Reranker kept top {len(nodes)} chunks")
         except Exception as e:
             print(f"[qa] Reranker failed, falling back to raw retrieval: {e}")
@@ -142,7 +140,7 @@ def ask(question: str, index: VectorStoreIndex) -> dict:
         doc_type = meta.get("type", "")
         if doc_type == "video":
             ts = meta.get("timestamp_label", "?")
-            sources.append(f"{meta.get('filename', 'video')} @ {ts}")
+            sources.append(f"{meta.get('filename', 'video')} at {ts}")
         elif doc_type == "html":
             sources.append(meta.get("title") or meta.get("source", "web"))
         else:
@@ -151,7 +149,7 @@ def ask(question: str, index: VectorStoreIndex) -> dict:
             if file_path:
                 from pathlib import Path
                 proper_uri = Path(file_path).as_uri()
-                sources.append(f"[link={proper_uri}]{filename}[/link] [dim]({file_path})[/dim]")
+                sources.append(f"[link={proper_uri}]{filename}[/link] ({file_path})")
             else:
                 sources.append(filename)
 

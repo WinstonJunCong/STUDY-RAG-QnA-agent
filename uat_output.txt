@@ -1,0 +1,46 @@
+=== UAT Evaluation ===
+NovaDesk RAG Agent — UAT Evaluation Report (Updated)||||||
+Embedding: BAAI/bge-base-en-v1.5  |  LLM: llama3.2  |  top_k: 8  |  All 17 questions evaluated||||||
+#|Category|Question|Verdict|Findings|Recommendation|Priority
+1|🟢 Basic|How much does the Growth plan cost?|✅ PASS|Correct answer. Cited 02_pricing_faq.md correctly. Clean and concise. Missing the '20% annual discount' detail but core answer is accurate.|Minor: add annual discount mention for completeness.|🟢 Low
+2|🟢 Basic|How do I add the live chat widget to my website?|⚠️ PARTIAL|Correct core answer with code snippet. However added: 'NovaDesk supports multiple channels and different versions of the chat widget' — this is NOT in the docs. Minor hallucination.|Strengthen prompt: 'Never add clarifications or caveats not explicitly stated in sources.'|🟡 Medium
+3|🟢 Basic|Is NovaDesk SOC 2 certified?|✅ PASS|Correct, well-cited, includes contact email. Perfect response.|None.|🟢 Low
+4|🟢 Basic|What ticket statuses exist in NovaDesk?|✅ PASS|Listed all 5 statuses correctly. Went further and described each one — all accurate and properly sourced from 04_ticketing_faq.md.|None. Bonus detail is a good sign of strong retrieval.|🟢 Low
+5|🟡 Multi-doc|What is the difference between Starter and Growth plans?|⚠️ PARTIAL|Only mentioned agent count difference (3 vs 15). Missed: automations limit (10 vs 100), custom fields (10 vs 50), AI Bot, custom SLAs, multiple knowledge bases, SAML SSO, enforced 2FA. Very incomplete multi-doc synthesis.|Upgrade to bge-base-en-v1.5. Feature limits are spread across docs 02, 04, 07, 08, 11 — better embeddings needed to pull all relevant chunks.|🔴 High
+6|🟡 Multi-doc|Can I use the AI Bot on the Starter plan?|❌ FAIL|Returned 'I couldn't find that in the provided documents.' — complete retrieval miss. Answer is clearly in 05_live_chat_faq.md and 08_knowledge_base_faq.md.|Critical retrieval failure. bge-small cannot semantically match 'AI Bot + Starter plan' to the right chunks. Upgrading embedding model is the primary fix.|🔴 High
+7|🟡 Multi-doc|What happens when no agents are online and a customer starts a chat?|✅ PASS|Correct answer, correct source (05_live_chat_faq.md), clean and concise response.|None.|🟢 Low
+8|🟡 Multi-doc|How does the Knowledge Base connect to the AI Bot?|⚠️ PARTIAL|Answer is mostly correct but missing [FILE:] citation tags entirely. Also added 'will only respond to queries it can find answers to' — an inference not present in the docs.|Check chunk metadata for doc 08. Verify format_source() labels are attached. Minor hallucination on the inference — add stricter no-inference rule.|🟡 Medium
+9|🔴 Conflict|What is the SLA first response time for an Urgent ticket?|❌ FAIL|Only cited legacy doc (30 min from 12_sla_legacy_overlap.md). Completely ignored current doc (1 hour from 11_automations_sla_faq.md). Did NOT flag the conflict — retrieved the wrong source and presented it as the definitive answer.|Add is_legacy=True metadata to doc 12 during ingestion. Add prompt rule: 'When sources conflict, present all versions and flag the conflict. Prefer non-legacy sources.' Also check if doc 11 is being retrieved for this query.|🔴 High
+10|🔴 Overlap|What discount do non-profits get?|✅ PASS|Correct answer (30%), clean deduplication — didn't repeat itself despite two docs covering the same info. No source citation included but answer is fully accurate.|Minor: should cite both 02_pricing_faq.md and 09_plans_billing_overlap.md per citation rules.|🟢 Low
+11|🔴 Overlap|How do I set up my NovaDesk account?|✅ PASS|Well synthesized from doc 03. All steps correct (signup → verify → subdomain → agents → channels → automations → KB). Steps not repeated despite doc 10 overlap. Good narrative flow.|Minor: doc 10 (checklist) not cited alongside doc 03, but the answer is complete and correct.|🟢 Low
+12|🟢 Basic|What is NovaDesk?|✅ PASS|Passed per user confirmation. Agent correctly identified NovaDesk as an all-in-one customer support platform.|None.|🟢 Low
+13|🔵 Hallucination|Does NovaDesk have a mobile app?|✅ PASS|Passed per user confirmation. Agent correctly returned 'I couldn't find that in the provided documents.' — did not hallucinate a yes/no answer.|None. Hallucination guard working correctly.|🟢 Low
+14|🔵 Hallucination|What is NovaDesk's uptime SLA or guaranteed availability?|✅ PASS|Passed per user confirmation. Agent correctly returned 'I couldn't find that in the provided documents.' — did not invent an uptime percentage.|None. Hallucination guard working correctly.|🟢 Low
+15|🔵 Hallucination|Can I import tickets from Zendesk?|✅ PASS|Passed per user confirmation. Agent correctly returned 'I couldn't find that in the provided documents.' — did not fabricate a migration feature.|None. Hallucination guard working correctly.|🟢 Low
+16|🧠 Reasoning|Summarize all limitations of the Starter plan|❌ FAIL|Only mentioned agent count (3) and price ($19). Missed: max 10 automations, max 10 custom fields, no AI Bot, no custom SLAs, no multiple KB, no SAML SSO, no enforced 2FA, 100 req/min API limit, no in-app chat support. Incorrectly listed '14-day trial' and price as limitations.|Retrieval not pulling from the right docs. Abstract query 'limitations' doesn't match chunk vocabulary. Implement HyDE (Hypothetical Document Embeddings) query transformation for abstract queries. Also increase top_k so chunks from docs 04, 07, 08, 11 are all retrieved.|🔴 High
+17|🧠 Reasoning|What should I do if I am a HIPAA-covered business?|✅ PASS|Correct core answer (BAA + contact sales@novadesk.io). Added useful context about data residency and security — all from doc 07, nothing hallucinated. Slightly verbose but fully grounded in sources.|Minor: should mention BAA is Enterprise-only more prominently as the first point.|🟢 Low
+
+=== Summary ===
+UAT Score Summary||
+Metric|Value|Notes
+Total Questions|17|Full UAT suite
+✅ Full Pass|11|Correct answer + correct sources
+⚠️ Partial Pass|3|Correct but incomplete/minor issue
+❌ Fail|3|Wrong answer or retrieval miss
+||
+Hard Pass Rate|65%|Full passes only / 17
+Adjusted Score|74%|Pass + 0.5×Partial / 17
+Production Target|≥ 80%|Minimum adjusted score for prod
+||
+Overall Verdict|🟠 Needs Work — fix retrieval failures|Based on adjusted score
+
+=== Fix Plan ===
+Recommended Fix Plan — Prioritized|||
+Pri|Fix|Action|Fixes
+🔴 #1|Upgrade embedding model|Change EMBED_MODEL='BAAI/bge-base-en-v1.5' in config.py → delete ./chroma_db → re-run ingest.py. One-time change.|Q6 (AI Bot miss), Q5 (incomplete plan diff)
+🔴 #2|Fix conflict detection|Add is_legacy=True + version='v3.x' metadata to doc 12 in ingest.py. Add prompt rule: 'prefer non-legacy sources, flag conflicts'.|Q9 (wrong SLA source)
+🔴 #3|Add HyDE query transform|Wrap retriever with HyDEQueryTransform from llama_index. Generates hypothetical answer first, then embeds it for better retrieval.|Q16 (Starter limitations miss)
+🟡 #4|Add bge-reranker-base|Add FlagEmbeddingReranker as postprocessor after retrieval. Re-scores top_k chunks by true relevance before passing to LLM.|Q5, Q8 multi-doc gaps
+🟡 #5|Tighten hallucination rule|Add to prompt: 'Never add clarifications, caveats, or explanations not explicitly stated in the sources.'|Q2 minor hallucination, Q8 inference
+🟢 #6|Fix missing citations|Debug format_source() output for Q8 and Q10 — verify [FILE:] metadata is attached to chunks at ingestion time.|Q8, Q10 missing citations
+

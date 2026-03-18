@@ -2,7 +2,12 @@
 # query.py — Interactive Q&A loop. Run after ingest.py.
 
 import sys
+import io
 from pathlib import Path
+
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
@@ -54,12 +59,13 @@ def main():
             continue
 
         # Print answer
-        console.print(Panel(
-            result["answer"],
-            title="[bold green]💬 Answer[/bold green]",
-            border_style="green",
-            padding=(1, 2)
-        ))
+        # console.print(Panel(
+        #     result["answer"],
+        #     title="[bold green]💬 Answer[/bold green]",
+        #     border_style="green",
+        #     padding=(1, 2)
+        # ))
+        console.print(result["answer"] + "\n")
 
         # Print sources
         if result["sources"]:
