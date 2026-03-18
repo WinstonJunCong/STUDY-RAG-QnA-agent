@@ -29,6 +29,7 @@ CHROMA_COLLECTION = "qna_docs"
 
 # ---------------- Debugging ----------------
 DEBUG_LLM = True      # Set to True to print exact prompts and raw LLM responses to the console
+DEBUG_TIMING = True   # Set to True to print timing for each pipeline step
 
 # ---------------- Advanced Retrieval ----------------
 USE_HYDE = True                            # HyDE: embed a hypothetical answer instead of raw question

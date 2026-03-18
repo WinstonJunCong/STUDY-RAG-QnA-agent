@@ -2,6 +2,27 @@
 # Retrieves relevant chunks and answers questions using the local Ollama LLM.
 # Includes source citations and video timestamps in every answer.
 
+import re
+import time
+
+class Timer:
+    """Context manager for timing code blocks"""
+    def __init__(self, name: str, enabled: bool = True):
+        self.name = name
+        self.enabled = enabled
+        self.start = None
+        self.elapsed = None
+    
+    def __enter__(self):
+        if self.enabled:
+            self.start = time.perf_counter()
+        return self
+    
+    def __exit__(self, *args):
+        if self.enabled:
+            self.elapsed = (time.perf_counter() - self.start) * 1000  # ms
+            print(f"[TIMING] {self.name}: {self.elapsed:.0f}ms")
+
 from llama_index.core import VectorStoreIndex
 from llama_index.core.prompts import PromptTemplate
 
@@ -27,9 +48,6 @@ QA_PROMPT = PromptTemplate(
     "Question: {query_str}\n\n"
     "Answer:"
 )
-
-
-import re
 
 
 def strip_markdown(text: str) -> str:
@@ -79,26 +97,38 @@ def ask(question: str, index: VectorStoreIndex) -> dict:
         }
     """
     from llama_index.core import Settings
+    
+    timing_enabled = getattr(config, "DEBUG_TIMING", False)
+    total_start = time.perf_counter()
+    
+    print(f"\n[qa] 🔍 Question: {question[:60]}...") if timing_enabled else None
+    
+    # ── Step 1: Setup retriever ───────────────────────────────────────────────
+    with Timer("1. Setup retriever", timing_enabled):
+        retriever = index.as_retriever(similarity_top_k=config.TOP_K)
 
-    # ── Step 1: Retrieve raw candidates ──────────────────────────────────────
-    retriever = index.as_retriever(similarity_top_k=config.TOP_K)
-
+    # ── Step 2: HyDE transformation (if enabled) ─────────────────────────────
+    search_query = question
     if getattr(config, "USE_HYDE", False):
-        # HyDE: generate a hypothetical answer, embed it, then retrieve with YOUR retriever
-        from llama_index.core.indices.query.query_transform.base import HyDEQueryTransform
-        from llama_index.core.schema import QueryBundle
+        with Timer("2. HyDE transformation", timing_enabled):
+            from llama_index.core.indices.query.query_transform.base import HyDEQueryTransform
+            from llama_index.core.schema import QueryBundle
 
-        hyde = HyDEQueryTransform(include_original=True)
-        transformed = hyde(QueryBundle(question))  # generates hypothetical doc
+            hyde = HyDEQueryTransform(include_original=True)
+            transformed = hyde(QueryBundle(question))  # generates hypothetical doc
 
-        if getattr(config, "DEBUG_LLM", False):
-            print(f"[hyde] Hypothetical doc: {transformed.embedding_strs[0][:300]}...")
+            if getattr(config, "DEBUG_LLM", False):
+                print(f"[hyde] Hypothetical doc: {transformed.embedding_strs[0][:300]}...")
 
-        # Use YOUR retriever with the transformed query
-        nodes = retriever.retrieve(transformed.embedding_strs[0])
+            # Use YOUR retriever with the transformed query
+            search_query = transformed.embedding_strs[0]
+        
+        with Timer("3. Vector search", timing_enabled):
+            nodes = retriever.retrieve(search_query)
         print(f"[qa] HyDE retrieved {len(nodes)} chunks")
     else:
-        nodes = retriever.retrieve(question)
+        with Timer("3. Vector search", timing_enabled):
+            nodes = retriever.retrieve(question)
         print(f"[qa] Standard retrieval: {len(nodes)} chunks")
 
     if not nodes:
@@ -107,24 +137,26 @@ def ask(question: str, index: VectorStoreIndex) -> dict:
             "sources": []
         }
 
-    # ── Step 2: Rerank (optional second-pass scoring) ─────────────────────────
+    # ── Step 4: Rerank (optional second-pass scoring) ─────────────────────────
     if getattr(config, "USE_RERANKER", False):
-        try:
-            from llama_index.core.postprocessor import SentenceTransformerRerank
+        with Timer("4. Reranking", timing_enabled):
+            try:
+                from llama_index.core.postprocessor import SentenceTransformerRerank
 
-            reranker = SentenceTransformerRerank(
-                model=config.RERANKER_MODEL,
-                top_n=config.TOP_N,
-            )
-            nodes = reranker.postprocess_nodes(nodes, query_str=question)
-            print(f"[qa] Reranker kept top {len(nodes)} chunks")
-        except Exception as e:
-            print(f"[qa] Reranker failed, falling back to raw retrieval: {e}")
+                reranker = SentenceTransformerRerank(
+                    model=config.RERANKER_MODEL,
+                    top_n=config.TOP_N,
+                )
+                nodes = reranker.postprocess_nodes(nodes, query_str=question)
+                print(f"[qa] Reranker kept top {len(nodes)} chunks")
+            except Exception as e:
+                print(f"[qa] Reranker failed, falling back to raw retrieval: {e}")
 
-    # ── Step 3: Build prompt and call LLM ────────────────────────────────────
-    context_parts = [format_source(n) for n in nodes]
-    context_str = "\n\n---\n\n".join(context_parts)
-    prompt = QA_PROMPT.format(context_str=context_str, query_str=question)
+    # ── Step 5: Build prompt ───────────────────────────────────────────────────
+    with Timer("5. Build prompt", timing_enabled):
+        context_parts = [format_source(n) for n in nodes]
+        context_str = "\n\n---\n\n".join(context_parts)
+        prompt = QA_PROMPT.format(context_str=context_str, query_str=question)
 
     if getattr(config, "DEBUG_LLM", False):
         from rich.console import Console
@@ -132,31 +164,39 @@ def ask(question: str, index: VectorStoreIndex) -> dict:
         dbg_console = Console()
         dbg_console.print(Panel(prompt, title="[bold magenta]🐛 DEBUG: Exact Prompt Sent to LLM[/bold magenta]", border_style="magenta"))
 
-    response = Settings.llm.complete(prompt)
+    # ── Step 6: LLM generation ─────────────────────────────────────────────────
+    with Timer("6. LLM generation", timing_enabled):
+        response = Settings.llm.complete(prompt)
 
     if getattr(config, "DEBUG_LLM", False):
         dbg_console.print(Panel(str(response), title="[bold magenta]🐛 DEBUG: Raw LLM Response[/bold magenta]", border_style="magenta"))
 
-    # ── Step 4: Collect unique source labels ─────────────────────────────────
-    sources = []
-    for node in nodes:
-        meta = node.metadata
-        doc_type = meta.get("type", "")
-        if doc_type == "video":
-            ts = meta.get("timestamp_label", "?")
-            sources.append(f"{meta.get('filename', 'video')} at {ts}")
-        elif doc_type == "html":
-            sources.append(meta.get("title") or meta.get("source", "web"))
-        else:
-            file_path = meta.get("file_path", "")
-            filename = meta.get("filename") or meta.get("source", "file")
-            if file_path:
-                from pathlib import Path
-                proper_uri = Path(file_path).as_uri()
-                sources.append(f"[link={proper_uri}]{filename}[/link] ({file_path})")
+    # ── Step 7: Collect sources ────────────────────────────────────────────────
+    with Timer("7. Collect sources", timing_enabled):
+        sources = []
+        for node in nodes:
+            meta = node.metadata
+            doc_type = meta.get("type", "")
+            if doc_type == "video":
+                ts = meta.get("timestamp_label", "?")
+                sources.append(f"{meta.get('filename', 'video')} at {ts}")
+            elif doc_type == "html":
+                sources.append(meta.get("title") or meta.get("source", "web"))
             else:
-                sources.append(filename)
+                file_path = meta.get("file_path", "")
+                filename = meta.get("filename") or meta.get("source", "file")
+                if file_path:
+                    from pathlib import Path
+                    proper_uri = Path(file_path).as_uri()
+                    sources.append(f"[link={proper_uri}]{filename}[/link] ({file_path})")
+                else:
+                    sources.append(filename)
 
+    # ── Summary ────────────────────────────────────────────────────────────────
+    if timing_enabled:
+        total_elapsed = (time.perf_counter() - total_start) * 1000
+        print(f"[TIMING] Total pipeline: {total_elapsed:.0f}ms\n")
+    
     return {
         "answer": str(response).strip(),
         "sources": list(dict.fromkeys(sources))  # deduplicate, preserve order
