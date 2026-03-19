@@ -21,7 +21,7 @@ CHUNK_SIZE = 512        # tokens per chunk
 CHUNK_OVERLAP = 128    # overlap between chunks (helps context continuity)
 
 # ---------------- Retrieval ----------------
-TOP_K = 8               # how many chunks to retrieve per question
+TOP_K = 12              # raw candidates per sub-query (more headroom for MMR after merge)
 
 # ---------------- Storage ----------------
 CHROMA_PATH = "./chroma_db"         # where ChromaDB persists on disk
@@ -32,7 +32,14 @@ DEBUG_LLM = True      # Set to True to print exact prompts and raw LLM responses
 DEBUG_TIMING = True   # Set to True to print timing for each pipeline step
 
 # ---------------- Advanced Retrieval ----------------
-USE_HYDE = True                            # HyDE: embed a hypothetical answer instead of raw question
-USE_RERANKER = True                        # Reranker: second-pass re-scoring of retrieved chunks
-RERANKER_MODEL = "BAAI/bge-reranker-base" # cross-encoder model for reranking
-TOP_N = 5                                  # chunks to keep after reranking (from TOP_K raw candidates)
+USE_HYDE       = False                          # Disabled — hallucination risk for niche/technical docs
+USE_RERANKER   = False                          # Disabled — slow; cross-encoder not tuned to your domain
+
+# Multi-Query Expansion: rule-based rephrasings, no LLM required
+USE_MULTI_QUERY   = True
+MULTI_QUERY_COUNT = 3         # number of query variants (including the original)
+
+# MMR post-filter: keeps chunks that are BOTH relevant AND diverse
+USE_MMR    = True
+MMR_LAMBDA = 0.6              # 0 = pure diversity · 1 = pure relevance (start at 0.6, tune as needed)
+TOP_N      = 5                # final chunks kept after MMR (from the merged TOP_K pool)
