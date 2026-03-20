@@ -58,6 +58,15 @@ QA_PROMPT = PromptTemplate(
     "  - 'What discount do non-profits get?' → include ALL groups mentioned "
     "(e.g. non-profits AND educational institutions), not just one.\n\n"
 
+    "PRICING QUESTIONS: For questions about plan costs, extract ALL pricing details "
+    "from the sources:\n"
+    "  - Monthly price per agent\n"
+    "  - Agent seat limits\n"
+    "  - Annual/discount pricing (e.g. 20% off annually)\n"
+    "  - Trial information\n"
+    "  Example correct: '$49 per agent per month, up to 15 agents, 20% off annually'\n"
+    "  Example WRONG:   '$49 per agent per month' (missing agent limit and discount)\n\n"
+
     "FORMAT:\n"
     "  - Write in plain paragraphs. Only use numbered lists when the question "
     "explicitly asks to 'list', 'summarize all', or requests step-by-step instructions.\n"
@@ -67,11 +76,11 @@ QA_PROMPT = PromptTemplate(
     "'I couldn't find that in the provided documents.' — one sentence, nothing else. "
     "Do NOT suggest alternatives, workarounds, or related features.\n\n"
     
-    "RELEVANCE GATE: Before answering, verify that the retrieved sources actually "
-    "address the specific question asked. If the sources discuss different topics "
-    "(e.g., question asks about X but sources are about Y, Z), respond with "
-    "'I couldn't find that in the provided documents.' — do NOT combine unrelated "
-    "information into an answer.\n\n"
+    "RELEVANCE GATE: If the retrieved sources do NOT contain information that "
+    "directly answers the question, respond with ONLY "
+    "'I couldn't find that in the provided documents.' — nothing else. "
+    "Do NOT add general information about NovaDesk, unrelated features, or "
+    "other topics mentioned in the sources.\n\n"
 
     "YES/NO QUESTIONS: If the direct answer is No, your FIRST word must be 'No.'\n"
     "  - Correct:   'No, the AI Bot is only available on Growth and Enterprise plans.'\n"
@@ -218,6 +227,31 @@ def ask(question: str, index: VectorStoreIndex) -> dict:
     with Timer("1. Retrieval", timing_enabled):
         nodes = retriever.retrieve(question)
         print(f"[qa] Retrieved {len(nodes)} chunks")
+
+    # Keyword-based relevance check: if question contains specific terms (like
+    # product names, brand names, specific features), verify they appear together
+    # in at least one retrieved chunk
+    question_lower = question.lower()
+    question_words = set(re.findall(r'\b[a-z]{4,}\b', question_lower))
+    stop_words = {'what', 'does', 'have', 'from', 'with', 'that', 'this', 'when', 'where', 
+                  'how', 'can', 'the', 'and', 'for', 'are', 'you', 'your', 'not', 'about', 
+                  'nova', 'desk', 'desk', 'plan', 'plans', 'plan', 'using', 'about'}
+    key_terms = question_words - stop_words
+    
+    # Check if question has a specific brand/product name or import-related terms
+    specific_terms = {'zendesk', 'hipaa', 'soc', 'slack', 'api', 'import', 'export',
+                      'gdpr', 'sso', 'saml', 'oauth', 'webhook', 'zapier'}
+    question_specific = key_terms & specific_terms
+    
+    if question_specific:
+        chunk_texts = [n.text.lower() for n in nodes]
+        # Check if ALL specific terms appear in at least one chunk
+        all_found = all(any(term in chunk for chunk in chunk_texts) for term in question_specific)
+        if not all_found:
+            return {
+                "answer": "I couldn't find that in the provided documents.",
+                "sources": []
+            }
 
     if not nodes:
         return {
