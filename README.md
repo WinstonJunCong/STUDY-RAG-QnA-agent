@@ -1,124 +1,203 @@
-# 📚 Document Q&A Agent — Free Stack
+# 📚 NovaDesk Q&A RAG System
 
-A fully local, zero-cost document Q&A agent using:
-- **LlamaIndex** — RAG framework
-- **HuggingFace Sentence Transformers** — free local embeddings
-- **Ollama + Llama 3.2** — free local LLM
-- **ChromaDB** — free local vector store
-- **Whisper** — free local video/audio transcription
+A production-ready Retrieval-Augmented Generation (RAG) system for answering customer questions about NovaDesk using company documentation.
 
-No API keys. No cloud. No cost.
+## Performance
+
+| Metric | Score |
+|--------|-------|
+| UAT Pass Rate | 14/17 (82%) |
+| Average Score | **94.0%** |
+| Response Time | ~3-5 seconds |
+
+## Tech Stack
+
+| Component | Technology | Why |
+|-----------|-----------|-----|
+| Framework | LlamaIndex | Best Python RAG library |
+| Vector DB | ChromaDB | Local, fast, easy |
+| Embeddings | BAAI/bge-base-en-v1.5 | Open-source, good quality |
+| LLM | Ollama + Mistral | Fully local, private |
+| Parsing | Unstructured.io | Semantic document understanding |
+| Retrieval | Hybrid (Vector + BM25 + RRF) | Captures semantic and exact matches |
+
+No API keys required. Runs entirely on local hardware.
 
 ---
 
 ## Project Structure
 
 ```
-qna-agent/
-├── ingest/
-│   ├── text_loader.py      # .txt / .md files
-│   ├── html_loader.py      # scrape web pages
-│   └── video_loader.py     # Whisper transcription
-├── pipeline/
-│   └── index_builder.py    # chunk → embed → ChromaDB
+chat_agent/
 ├── agent/
-│   └── qa.py               # retrieve → answer with citations
-├── ingest.py               # ← run this first
-├── query.py                # ← run this to ask questions
-├── config.py               # tweak models / settings here
+│   └── qa.py                 # Hybrid retrieval + LLM generation
+├── data/
+│   ├── chroma_db/            # Vector index (auto-created)
+│   └── bm25_nodes.json       # BM25 corpus (auto-created)
+├── docs/
+│   ├── PRESENTATION_NOTES.md  # Technical deep dive
+│   └── ITERATION_HISTORY.md  # Version history
+├── ingest/
+│   ├── text_loader.py         # .txt / .md files
+│   ├── html_loader.py         # Web scraping
+│   └── video_loader.py        # Whisper transcription
+├── pipeline/
+│   └── index_builder.py       # Unstructured.io + ChromaDB indexing
+├── scoring/
+│   └── score_responses.py      # LLM-judged evaluation
+├── sample_files/               # 13 source markdown documents
+├── config.py                  # All configuration settings
+├── ingestion.py               # Document ingestion entry point
+├── query.py                  # Interactive Q&A CLI
+├── run_uat.py                # Automated UAT testing
 └── requirements.txt
 ```
 
 ---
 
-## Setup Plan
+## Quick Start
 
-### Step 1 — Install Ollama (the free local LLM)
+### Prerequisites
 
-Download from https://ollama.com and run:
+1. **Ollama** installed and running
+   ```bash
+   ollama pull mistral
+   ollama serve
+   ```
 
-```bash
-ollama pull llama3.2
-```
+2. **Python dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-This downloads the Llama 3.2 model (~2GB). It runs entirely on your machine.
-
-> **Low RAM?** Use `ollama pull phi3` instead, then set `OLLAMA_MODEL = "phi3"` in config.py
-
----
-
-### Step 2 — Install Python dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-The first run will also download the HuggingFace embedding model (~130MB, cached after first use).
-
----
-
-### Step 3 — Add your documents
-
-Edit `ingest.py` and fill in your sources:
-
-```python
-TEXT_FOLDERS = ["./docs"]          # folder with .txt / .md files
-HTML_URLS    = ["https://..."]     # web pages to scrape
-VIDEO_FILES  = ["./video.mp4"]     # videos to transcribe
-```
-
-Put your text/markdown files inside a `./docs/` folder.
-
----
-
-### Step 4 — Ingest (one-time)
+### Ingest Documents (One-time)
 
 ```bash
-python ingest.py
+python ingestion.py
 ```
 
 This will:
-1. Load all your documents
-2. Split them into chunks
-3. Embed each chunk locally (HuggingFace)
-4. Store vectors in `./chroma_db/` on disk
+1. Load documents from `sample_files/`
+2. Parse with Unstructured.io (semantic chunking)
+3. Build hybrid index (ChromaDB + BM25)
+4. Save to `./data/`
 
-Only needs to run once (or when you add new documents).
-
----
-
-### Step 5 — Ask questions
+### Ask Questions
 
 ```bash
 python query.py
 ```
 
-You'll get an interactive prompt. Every answer includes source citations and video timestamps.
+### Run UAT Tests
+
+```bash
+python run_uat.py
+```
 
 ---
 
-## Tweaking Performance
+## Configuration
 
-All settings are in `config.py`:
+All settings in `config.py`:
 
-| Setting | Default | Effect |
-|---|---|---|
-| `EMBED_MODEL` | `bge-small-en-v1.5` | Swap for `bge-large` for better quality |
-| `OLLAMA_MODEL` | `llama3.2` | Swap for `mistral` or `phi3` |
-| `CHUNK_SIZE` | `512` | Smaller = more precise retrieval |
-| `CHUNK_OVERLAP` | `50` | Higher = better context continuity |
-| `TOP_K` | `5` | More chunks = more context for LLM |
+### Retrieval Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `TOP_K` | 6 | Final chunks after fusion |
+| `MMR_LAMBDA` | 0.7 | 0=max diversity, 1=max relevance |
+| `BM25_TOP_K` | 8 | BM25 candidates before fusion |
+| `USE_BM25` | True | Enable hybrid retrieval |
+
+### Chunking Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `CHUNK_MAX_CHARS` | 2000 | Hard ceiling per chunk |
+| `CHUNK_SOFT_LIMIT` | 1000 | Preferred split point |
+| `CHUNK_MIN_CHARS` | 350 | Merge smaller fragments |
+
+### Models
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `EMBED_MODEL` | BAAI/bge-base-en-v1.5 | Embedding model |
+| `OLLAMA_MODEL` | mistral | LLM model |
+
+---
+
+## Architecture Highlights
+
+### Hybrid Retrieval
+
+Combines vector search with BM25 using Reciprocal Rank Fusion:
+
+```
+Query → [Vector Search + MMR] → [BM25 Search] → RRF Fusion → Top-K Chunks
+```
+
+- **Vector search**: Captures semantic similarity ("cheapest" → "lowest price")
+- **BM25**: Captures exact keywords ("Zendesk", "HIPAA")
+- **RRF**: Combines both rankings
+
+### Semantic Chunking
+
+Uses Unstructured.io for intelligent document parsing:
+
+- Preserves table structure
+- Keeps Q&A pairs together
+- Respects heading hierarchy
+
+### Prompt Engineering
+
+Comprehensive rules for consistent, accurate answers:
+
+- **RELEVANCE GATE**: Prevents hallucination on missing topics
+- **PRICING QUESTIONS**: Extracts all pricing details
+- **CONFLICT CITATION**: States actual values from conflicting sources
+- **YES/NO FRAMING**: Clear direct answers
+
+---
+
+## Testing
+
+### UAT Test Suite
+
+17 questions covering:
+- Pricing (plans, discounts)
+- Setup (account, channels)
+- Features (AI Bot, Knowledge Base)
+- Compliance (SOC 2, HIPAA)
+- Integrations (Slack, API)
+
+### Scoring
+
+LLM-judged evaluation with rubric:
+- **100 (Pass)**: Exact match
+- **75-99 (Good)**: Minor gaps
+- **50-74 (Partial)**: Missing parts
+- **0-49 (Fail)**: Wrong or missing
+
+---
+
+## Documentation
+
+| Document | Purpose |
+|----------|---------|
+| `docs/PRESENTATION_NOTES.md` | Technical deep dive with diagrams and code |
+| `docs/ITERATION_HISTORY.md` | Version-by-version development history |
+| `docs/SPEC.md` | Technical specification |
 
 ---
 
 ## Cost Breakdown
 
 | Component | Cost |
-|---|---|
+|-----------|------|
 | Embeddings (HuggingFace) | ✅ Free |
 | LLM (Ollama) | ✅ Free |
 | Vector DB (ChromaDB) | ✅ Free |
-| Video transcription (Whisper) | ✅ Free |
+| Document parsing (Unstructured.io) | ✅ Free |
 | **Total** | **$0** |
 
 ---
@@ -128,11 +207,27 @@ All settings are in `config.py`:
 **"Connection refused" from Ollama**
 → Make sure Ollama is running: `ollama serve`
 
-**Out of memory with video transcription**
-→ Use a smaller Whisper model in config: `WHISPER_MODEL = "tiny"`
-
 **Slow embedding on first run**
 → Normal — HuggingFace downloads the model once, then it's cached.
 
 **Poor answer quality**
-→ Try a larger Ollama model (`mistral` or `llama3.2:3b`) or increase `TOP_K` in config.py
+→ Check `config.py` for tuning options, or review `docs/PRESENTATION_NOTES.md`
+
+**"Module not found" errors**
+→ Run `pip install -r requirements.txt`
+
+---
+
+## Version History
+
+See `docs/ITERATION_HISTORY.md` for detailed version-by-version breakdown.
+
+| Version | Key Change | Score |
+|---------|------------|-------|
+| R10 | Unstructured.io migration | 95.5% |
+| R12b | Conflict citation rules | 94.1% |
+| R13/14 | RELEVANCE GATE | 94.0% |
+
+---
+
+*Last Updated: March 2026*
