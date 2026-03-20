@@ -2,6 +2,10 @@
 llama-index>=0.10.0
 llama-index-vector-stores-chroma>=0.1.0
 
+# BM25 + Reciprocal Rank Fusion
+llama-index-retrievers-bm25>=0.1.0
+rank-bm25>=0.2.0
+
 # Free local embeddings (no API key needed)
 llama-index-embeddings-huggingface>=0.2.0
 sentence-transformers>=2.7.0
@@ -26,3 +30,7 @@ openai-whisper>=20231117
 python-dotenv>=1.0.0
 rich>=13.0.0        # pretty terminal output
 psutil>=5.9.0       # system RAM monitoring (for diagnostics)
+
+# Unstructured.io - document parsing (markdown, PDF, HTML, DOCX, PPTX)
+unstructured>=0.10.0
+unstructured[md]>=0.10.0

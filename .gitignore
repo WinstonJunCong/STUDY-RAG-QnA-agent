@@ -92,8 +92,9 @@ env.bak/
 venv.bak/
 
 # ChromaDB data storage
-chroma_db/
-chroma/
+data/chroma_db/
+data/bm25_nodes.json
+data/docstore.json
 
 # IDE / Editor
 .idea/
@@ -105,8 +106,3 @@ chroma/
 .mypy_cache/
 .dmypy.json
 dmypy.json
-
-# 
-scratch.py
-test_ollama.py
-uat_new.txt
