@@ -1,100 +1,30 @@
 # pipeline/index_builder.py
-# Takes raw Documents, chunks them, embeds with a free local model,
-# and stores in ChromaDB on disk.
+# Uses Unstructured.io for semantic document parsing.
+# Automatically handles markdown, tables, lists, and preserves heading hierarchy.
 
-import os
-import psutil
 import chromadb
-from llama_index.core import VectorStoreIndex, StorageContext, Settings
-from llama_index.core import Document
-from llama_index.core.node_parser import SentenceSplitter
+import json
+from llama_index.core import VectorStoreIndex, StorageContext, Settings, Document
+from llama_index.core.schema import TextNode
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.ollama import Ollama
+from unstructured.partition.md import partition_md
+from unstructured.partition.text import partition_text
+from unstructured.chunking.title import chunk_by_title
+from pathlib import Path
 
 import config
 
 
-def print_diagnostics():
-    """Print system RAM usage, GPU info, and which device models will use."""
-    print("\n" + "="*50)
-    print("🔍 DIAGNOSTICS")
-    print("="*50)
-
-    # --- System RAM ---
-    ram = psutil.virtual_memory()
-    print(f"💾 System RAM : {ram.used / 1e9:.1f} GB used / {ram.total / 1e9:.1f} GB total ({ram.percent}%)")
-
-    # --- GPU check via nvidia-smi ---
-    try:
-        import subprocess
-        result = subprocess.run(
-            ["nvidia-smi", "--query-gpu=name,memory.used,memory.total,utilization.gpu",
-             "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=5
-        )
-        if result.returncode == 0:
-            for line in result.stdout.strip().split("\n"):
-                name, mem_used, mem_total, util = [x.strip() for x in line.split(",")]
-                print(f"🎮 GPU        : {name}")
-                print(f"   VRAM      : {mem_used} MB used / {mem_total} MB total")
-                print(f"   Utilization: {util}%")
-        else:
-            print("🎮 GPU        : nvidia-smi not available or no NVIDIA GPU found")
-    except Exception:
-        print("🎮 GPU        : Could not query GPU (nvidia-smi not found)")
-
-    # --- Ollama model info ---
-    try:
-        import subprocess
-        result = subprocess.run(["ollama", "ps"], capture_output=True, text=True, timeout=5)
-        if result.returncode == 0 and result.stdout.strip():
-            print(f"🤖 Ollama running models:\n{result.stdout.strip()}")
-        else:
-            print(f"🤖 Ollama model : {config.OLLAMA_MODEL} (not yet loaded into memory)")
-    except Exception:
-        print(f"🤖 Ollama model : {config.OLLAMA_MODEL} (could not query ollama ps)")
-
-    # --- Embedding device ---
-    try:
-        import torch
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"🧮 Embed device : {device.upper()} ({'GPU' if device == 'cuda' else 'CPU — no CUDA available'})")
-    except ImportError:
-        print("🧮 Embed device : torch not found, defaulting to CPU")
-
-    print("="*50 + "\n")
-
-
 def configure_settings():
-    """
-    Set global LlamaIndex settings to use free local models only.
-    Call this once before building or querying the index.
-    """
-    if config.DEBUG_LLM:
-        print_diagnostics()  # 👈 debug info printed here before models load
-
+    """Set global LlamaIndex settings."""
     Settings.embed_model = HuggingFaceEmbedding(model_name=config.EMBED_MODEL)
-    # print(f"[debug] Loading Ollama with model='{config.OLLAMA_MODEL}'")
     Settings.llm = Ollama(
-        model=config.OLLAMA_MODEL, 
+        model=config.OLLAMA_MODEL,
         base_url=config.OLLAMA_BASE_URL,
         request_timeout=120.0,
-        )
-    # Settings.llm = Ollama(
-    # model=config.OLLAMA_MODEL,           # hardcoded, not from config, just to test
-    # base_url=config.OLLAMA_BASE_URL,
-    # request_timeout=600.0,
-    # context_window=128000,    # 👈 hard cap, phi3:mini supports 4096 max
-    # num_output=2048,         # 👈 cap the response length too
-    # )
-
-    # Inspect the actual object
-    # print(f"[debug] Settings.llm object model = '{Settings.llm.model}'")
-    # print(f"[debug] Settings.llm type = {type(Settings.llm)}")
-    # print(f"[debug] Settings.llm full config = {Settings.llm.__dict__}")
-    Settings.chunk_size = config.CHUNK_SIZE
-    Settings.chunk_overlap = config.CHUNK_OVERLAP
+    )
     print(f"[settings] Embed: {config.EMBED_MODEL} | LLM: {config.OLLAMA_MODEL}")
 
 
@@ -105,37 +35,127 @@ def get_vector_store():
     return ChromaVectorStore(chroma_collection=collection)
 
 
+def partition_document(filepath: str):
+    """
+    Partition a document into elements using Unstructured.
+    Automatically handles .md, .txt (transcripts), .pdf, .html
+    """
+    path = Path(filepath)
+    ext = path.suffix.lower()
+
+    if ext == ".md":
+        return partition_md(filename=filepath)
+    elif ext in (".txt", ".vtt", ".srt"):
+        return partition_text(filename=filepath)
+    else:
+        from unstructured.partition.auto import partition
+        return partition(filename=filepath)
+
+
+def elements_to_nodes(chunks, source_file: str) -> list[TextNode]:
+    """
+    Convert Unstructured chunks into LlamaIndex TextNodes.
+    Preserves all metadata: heading hierarchy, element type, source.
+    """
+    nodes = []
+    for chunk in chunks:
+        text = chunk.text.strip()
+        if not text:
+            continue
+
+        meta = {
+            "filename": Path(source_file).name,
+            "source": source_file,
+            "element_type": type(chunk).__name__,
+        }
+
+        if hasattr(chunk, "metadata"):
+            um = chunk.metadata
+            if hasattr(um, "page_number") and um.page_number:
+                meta["page"] = um.page_number
+            if hasattr(um, "parent_id") and um.parent_id:
+                meta["parent_id"] = str(um.parent_id)
+            if hasattr(um, "filename") and um.filename:
+                meta["filename"] = Path(um.filename).name
+
+        nodes.append(TextNode(text=text, metadata=meta))
+
+    return nodes
+
+
 def build_index(documents: list[Document]) -> VectorStoreIndex:
     """
-    Chunk, embed, and store documents. Returns a queryable index.
-    Safe to call multiple times — new docs are added, existing ones aren't duplicated.
+    Full ingestion pipeline:
+    1. Partition with Unstructured (structure-aware)
+    2. Chunk by title sections (keeps Q&A pairs together)
+    3. Convert to LlamaIndex nodes
+    4. Embed and store in ChromaDB
     """
     configure_settings()
+
+    chroma_client = chromadb.PersistentClient(path=config.CHROMA_PATH)
+    try:
+        chroma_client.delete_collection(config.CHROMA_COLLECTION)
+        print(f"[index_builder] Cleared existing ChromaDB collection")
+    except Exception:
+        pass
+
+    all_nodes = []
+    for doc in documents:
+        filepath = doc.metadata.get("file_path", "")
+        if not filepath or not Path(filepath).exists():
+            continue
+
+        print(f"   Parsing: {Path(filepath).name}")
+
+        elements = partition_document(filepath)
+
+        chunks = chunk_by_title(
+            elements,
+            max_characters=config.CHUNK_MAX_CHARS,
+            new_after_n_chars=config.CHUNK_SOFT_LIMIT,
+            combine_text_under_n_chars=config.CHUNK_MIN_CHARS,
+            multipage_sections=True,
+        )
+
+        nodes = elements_to_nodes(chunks, filepath)
+        all_nodes.extend(nodes)
+        print(f"      -> {len(nodes)} chunks")
+
+    print(f"[index_builder] Total chunks: {len(all_nodes)}")
+
+    # Save nodes to JSON for BM25 retriever
+    bm25_path = "./data/bm25_nodes.json"
+    nodes_data = [
+        {
+            "id": node.node_id,
+            "text": node.text,
+            "metadata": node.metadata
+        }
+        for node in all_nodes
+    ]
+    with open(bm25_path, "w", encoding="utf-8") as f:
+        json.dump(nodes_data, f, ensure_ascii=False)
+    print(f"[index_builder] Saved {len(nodes_data)} nodes to {bm25_path} for BM25")
+
     vector_store = get_vector_store()
     storage_context = StorageContext.from_defaults(vector_store=vector_store)
 
-    splitter = SentenceSplitter(
-        chunk_size=config.CHUNK_SIZE,
-        chunk_overlap=config.CHUNK_OVERLAP
-    )
-
-    index = VectorStoreIndex.from_documents(
-        documents,
+    print(f"[index_builder] Embedding {len(all_nodes)} chunks into ChromaDB...")
+    index = VectorStoreIndex(
+        all_nodes,
         storage_context=storage_context,
-        transformations=[splitter],
         show_progress=True,
     )
 
-    print(f"[index_builder] Indexed {len(documents)} documents into ChromaDB at {config.CHROMA_PATH}")
+    print(f"[index_builder] Index built — {len(all_nodes)} chunks in ChromaDB")
     return index
 
 
 def load_index() -> VectorStoreIndex:
-    """
-    Load an existing index from ChromaDB (no re-embedding needed).
-    Call this in your Q&A loop instead of rebuild_index every time.
-    """
+    """Load existing index from ChromaDB."""
     configure_settings()
     vector_store = get_vector_store()
-    storage_context = StorageContext.from_defaults(vector_store=vector_store)
-    return VectorStoreIndex.from_vector_store(vector_store, storage_context=storage_context)
+    index = VectorStoreIndex.from_vector_store(vector_store)
+    print("[index_builder] Index loaded from ChromaDB")
+    return index

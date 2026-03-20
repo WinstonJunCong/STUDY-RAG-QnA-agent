@@ -34,10 +34,10 @@ def main():
         console.print("[green]✓ Index loaded successfully[/green]\n")
     except Exception as e:
         console.print(f"[red]✗ Failed to load index: {e}[/red]")
-        console.print("[yellow]Tip: Run `python ingest.py` first to build the index.[/yellow]")
+        console.print("[yellow]Tip: Run `python ingestion.py` first to build the index.[/yellow]")
         return
 
-    console.print("[dim]Type your question and press Enter. Type 'quit' to exit.[/dim]\n")
+    console.print("\n[dim]Type your question and press Enter. Type 'quit' to exit.[/dim]\n")
 
     while True:
         try:
