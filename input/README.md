@@ -1,0 +1,58 @@
+# Spine User Guide
+
+> Scraped from https://en.esotericsoftware.com/spine-user-guide
+
+## Table of Contents
+
+- [Getting started](getting-started.md)
+  - [User interface](user-interface.md)
+  - [Skeletons](skeletons.md)
+  - [Bones](bones.md)
+  - [Slots](slots.md)
+  - [Images](images.md)
+  - [Tools](tools.md)
+  - [Keys](keys.md)
+  - [Animating](animating.md)
+- [Attachments](attachments.md)
+  - [Region attachments](region-attachments.md)
+  - [Mesh attachments](mesh-attachments.md)
+  - [Bounding box attachments](bounding-box-attachments.md)
+  - [Clipping attachments](clipping-attachments.md)
+  - [Path attachments](path-attachments.md)
+  - [Point attachments](point-attachments.md)
+- [Skins](skins.md)
+- [Constraints](constraints.md)
+  - [IK constraints](ik-constraints.md)
+  - [Path constraints](path-constraints.md)
+  - [Transform constraints](transform-constraints.md)
+  - [Physics constraints](physics-constraints.md)
+  - [Sliders](sliders.md)
+- [Events](events.md)
+- [Views](views.md)
+  - [Animations view](animations-view.md)
+  - [Audio view](audio-view.md)
+  - [Dopesheet view](dopesheet-view.md)
+  - [Ghosting view](ghosting-view.md)
+  - [Graph view](graph-view.md)
+  - [Mesh Tools view](mesh-tools-view.md)
+  - [Metrics view](metrics-view.md)
+  - [Outline view](outline-view.md)
+  - [Playback view](playback-view.md)
+  - [Preview view](preview-view.md)
+  - [Skins view](skins-view.md)
+  - [Slot Color view](slot-color-view.md)
+  - [Timeline view](timeline-view.md)
+  - [Tree view](tree-view.md)
+  - [Weights view](weights-view.md)
+- [Welcome screen](welcome-screen.md)
+- [Versioning](versioning.md)
+- [Export](export.md)
+  - [Texture packing](texture-packing.md)
+- [Import](import.md)
+  - [Import PSD](import-psd.md)
+- [Command line interface](command-line-interface.md)
+- [Settings](settings.md)
+
+---
+
+**Total articles scraped:** 49
