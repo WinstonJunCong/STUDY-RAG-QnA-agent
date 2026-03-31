@@ -28,6 +28,7 @@ def load_text_files(folder: str) -> list[Document]:
                             "source": str(path),
                             "type": "text",
                             "filename": path.name,
+                            "file_path": str(path.absolute()),
                         }
                     ))
                     print(f"[text_loader] Loaded: {path.name}")

@@ -2,7 +2,12 @@
 # query.py — Interactive Q&A loop. Run after ingest.py.
 
 import sys
+import io
 from pathlib import Path
+
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
@@ -29,10 +34,10 @@ def main():
         console.print("[green]✓ Index loaded successfully[/green]\n")
     except Exception as e:
         console.print(f"[red]✗ Failed to load index: {e}[/red]")
-        console.print("[yellow]Tip: Run `python ingest.py` first to build the index.[/yellow]")
+        console.print("[yellow]Tip: Run `python ingestion.py` first to build the index.[/yellow]")
         return
 
-    console.print("[dim]Type your question and press Enter. Type 'quit' to exit.[/dim]\n")
+    console.print("\n[dim]Type your question and press Enter. Type 'quit' to exit.[/dim]\n")
 
     while True:
         try:
@@ -54,18 +59,20 @@ def main():
             continue
 
         # Print answer
-        console.print(Panel(
-            result["answer"],
-            title="[bold green]💬 Answer[/bold green]",
-            border_style="green",
-            padding=(1, 2)
-        ))
+        # console.print(Panel(
+        #     result["answer"],
+        #     title="[bold green]💬 Answer[/bold green]",
+        #     border_style="green",
+        #     padding=(1, 2)
+        # ))
+        console.print(result["answer"] + "\n")
 
         # Print sources
         if result["sources"]:
             sources_text = Text()
             for i, src in enumerate(result["sources"], 1):
-                sources_text.append(f"  {i}. {src}\n", style="dim")
+                # We use markup=True here because qa.py is returning rich [link=...] syntax
+                sources_text.append(Text.from_markup(f"  {i}. {src}\n", style="dim"))
             console.print(Panel(
                 sources_text,
                 title="[bold blue]📎 Sources[/bold blue]",

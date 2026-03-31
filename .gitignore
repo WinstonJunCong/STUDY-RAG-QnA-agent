@@ -92,8 +92,9 @@ env.bak/
 venv.bak/
 
 # ChromaDB data storage
-chroma_db/
-chroma/
+data/chroma_db/
+data/bm25_nodes.json
+data/docstore.json
 
 # IDE / Editor
 .idea/

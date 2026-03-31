@@ -18,7 +18,7 @@ from pipeline.index_builder import build_index
 # ============================================================
 
 TEXT_FOLDERS = [
-    "./input",           # all .txt and .md files in this folder
+    "./sample_files",           # all .txt and .md files in this folder
 ]
 
 HTML_URLS = [
@@ -39,13 +39,13 @@ WHISPER_MODEL = "base"
 def main():
     all_docs = []
 
-    print("\n📂 Loading text/markdown files...")
+    print("\n>> Loading text/markdown files...")
     for folder in TEXT_FOLDERS:
         docs = load_text_files(folder)
         all_docs.extend(docs)
         print(f"   {len(docs)} docs from {folder}")
 
-    print("\n🌐 Loading HTML pages...")
+    print("\n>> Loading HTML pages...")
     if HTML_URLS:
         docs = load_html_urls(HTML_URLS)
         all_docs.extend(docs)
@@ -53,7 +53,7 @@ def main():
     else:
         print("   (no URLs configured)")
 
-    print("\n🎬 Transcribing videos...")
+    print("\n>> Transcribing videos...")
     if VIDEO_FILES:
         docs = load_videos(VIDEO_FILES, model_size=WHISPER_MODEL)
         all_docs.extend(docs)
@@ -62,13 +62,13 @@ def main():
         print("   (no video files configured)")
 
     if not all_docs:
-        print("\n⚠️  No documents loaded! Check your TEXT_FOLDERS / HTML_URLS / VIDEO_FILES above.")
+        print("\nWARNING: No documents loaded! Check your TEXT_FOLDERS / HTML_URLS / VIDEO_FILES above.")
         return
 
-    print(f"\n⚙️  Building index from {len(all_docs)} total documents...")
+    print(f"\n>> Building index from {len(all_docs)} total documents...")
     build_index(all_docs)
 
-    print("\n✅ Done! Run `python query.py` to start asking questions.\n")
+    print("\nDone! Run `python query.py` to start asking questions.\n")
 
 
 if __name__ == "__main__":
