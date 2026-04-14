@@ -1,0 +1,23 @@
+/* Remove left and right white space by overriding container width */
+.md-grid {
+  max-width: 100% !important;
+  width: 100% !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  margin: 0 !important;
+}
+
+/* Optional: Make the content area inside also stretch */
+.md-main__inner {
+  margin: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Optional: Ensure images and videos scale properly */
+.md-typeset img,
+.md-typeset video {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}

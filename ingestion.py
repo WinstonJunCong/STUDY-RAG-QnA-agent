@@ -18,7 +18,7 @@ from pipeline.index_builder import build_index
 # ============================================================
 
 TEXT_FOLDERS = [
-    "./sample_files",           # all .txt and .md files in this folder
+    "./.input",           # all .txt and .md files in this folder
 ]
 
 HTML_URLS = [

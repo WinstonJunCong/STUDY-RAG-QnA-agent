@@ -1,7 +1,7 @@
 # config.py — tweak these to change models / behaviour
 
 # ---------------- Embedding ----------------
-EMBED_MODEL = "BAAI/bge-base-en-v1.5"
+EMBED_MODEL = "D:\\huggingface_models\\Octen-8B"
 
 # ---------------- LLM (via Ollama) ----------------
 OLLAMA_MODEL = "mistral"
@@ -20,9 +20,9 @@ CHROMA_PATH = "./data/chroma_db"
 CHROMA_COLLECTION = "qna_docs"
 
 # ---------------- Unstructured.io chunking params ----------------
-CHUNK_MAX_CHARS = 2000      # hard ceiling per chunk
-CHUNK_SOFT_LIMIT = 1000    # preferred split point
-CHUNK_MIN_CHARS = 350      # merge sections smaller than this
+CHUNK_MAX_CHARS = 8000      # hard ceiling per chunk (Octen supports 32K context)
+CHUNK_SOFT_LIMIT = 4000    # preferred split point
+CHUNK_MIN_CHARS = 700      # merge sections smaller than this
 
 # ---------------- Debugging ----------------
 DEBUG_LLM = True

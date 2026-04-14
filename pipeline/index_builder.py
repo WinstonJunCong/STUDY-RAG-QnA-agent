@@ -2,6 +2,21 @@
 # Uses Unstructured.io for semantic document parsing.
 # Automatically handles markdown, tables, lists, and preserves heading hierarchy.
 
+# Load .env file at the very top - BEFORE any other imports
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Set cache locations from .env - ensures models load from D: drive
+HF_HOME = os.getenv("HF_HOME", "D:\\huggingface_cache")
+os.environ["HF_HOME"] = HF_HOME
+os.environ["TRANSFORMERS_CACHE"] = os.getenv("TRANSFORMERS_CACHE", f"{HF_HOME}\\transformers")
+
+# Force GPU usage for embedding model
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
 import chromadb
 import json
 from llama_index.core import VectorStoreIndex, StorageContext, Settings, Document
@@ -17,9 +32,23 @@ from pathlib import Path
 import config
 
 
+class OctenEmbedding(HuggingFaceEmbedding):
+    """
+    Custom wrapper for Octen embedding model.
+    Adds "- " prefix to documents to avoid Qwen3-Embedding upstream issue.
+    See: https://huggingface.co/Qwen/Qwen3-Embedding-8B/discussions/21
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def _embed(self, inputs: list[str], prompt_name: str | None = None) -> list[list[float]]:
+        prefixed_inputs = ["- " + text for text in inputs]
+        return super()._embed(prefixed_inputs, prompt_name)
+
+
 def configure_settings():
     """Set global LlamaIndex settings."""
-    Settings.embed_model = HuggingFaceEmbedding(model_name=config.EMBED_MODEL)
+    Settings.embed_model = OctenEmbedding(model_name=config.EMBED_MODEL, device="cuda")
     Settings.llm = Ollama(
         model=config.OLLAMA_MODEL,
         base_url=config.OLLAMA_BASE_URL,

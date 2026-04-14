@@ -18,6 +18,7 @@ def load_text_files(folder: str) -> list[Document]:
         return docs
 
     for path in folder_path.rglob("*"):
+        print(f"[text_loader] Checking: {path}")
         if path.suffix.lower() in {".txt", ".md"}:
             try:
                 text = path.read_text(encoding="utf-8")
