@@ -24,6 +24,18 @@ CHUNK_MAX_CHARS = 8000      # hard ceiling per chunk (Octen supports 32K context
 CHUNK_SOFT_LIMIT = 4000    # preferred split point
 CHUNK_MIN_CHARS = 700      # merge sections smaller than this
 
+# ---------------- Ingestion ----------------
+TEXT_FOLDERS = [
+    "./.input",
+]
+
+# ---------------- FAQ Auto-Enhancement ----------------
+FAQ_ENTRIES_FILE = "./data/faq_entries.md"
+FAQ_DRAFTS_FILE = "./data/faq_drafts.md"
+SIMILARITY_THRESHOLD = 0.9      # Query deduplication threshold
+MIN_QUERY_COUNT = 3             # Min queries to trigger FAQ generation
+FAQ_SCHEDULE = "biweekly"        # "biweekly" or "manual"
+
 # ---------------- Debugging ----------------
-DEBUG_LLM = True
-DEBUG_TIMING = True
+DEBUG_LLM = False
+DEBUG_TIMING = False

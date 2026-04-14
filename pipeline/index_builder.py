@@ -188,3 +188,13 @@ def load_index() -> VectorStoreIndex:
     index = VectorStoreIndex.from_vector_store(vector_store)
     print("[index_builder] Index loaded from ChromaDB")
     return index
+
+
+def delete_index():
+    """Delete the ChromaDB collection."""
+    chroma_client = chromadb.PersistentClient(path=config.CHROMA_PATH)
+    try:
+        chroma_client.delete_collection(config.CHROMA_COLLECTION)
+        print("[index_builder] Deleted ChromaDB collection")
+    except Exception as e:
+        print(f"[index_builder] No collection to delete: {e}")

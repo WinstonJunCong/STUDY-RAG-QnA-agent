@@ -1,46 +1,28 @@
 #!/usr/bin/env python3
 # ingest.py — Run this once to load all your documents into ChromaDB.
-# Edit the SOURCES section below to point to your files/URLs/videos.
 
 import sys
 from pathlib import Path
 
-# Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+import config
 from ingest.text_loader import load_text_files
 from ingest.html_loader import load_html_urls
 from ingest.video_loader import load_videos
 from pipeline.index_builder import build_index
 
-# ============================================================
-#  👇 EDIT THIS SECTION — point to your actual sources
-# ============================================================
+HTML_URLS = []
 
-TEXT_FOLDERS = [
-    "./.input",           # all .txt and .md files in this folder
-]
+VIDEO_FILES = []
 
-HTML_URLS = [
-    # "https://en.wikipedia.org/wiki/Retrieval-augmented_generation",
-    # "https://docs.llamaindex.ai/en/stable/",
-]
-
-VIDEO_FILES = [
-    # "./videos/lecture.mp4",
-    # "./videos/interview.mp3",
-]
-
-# Whisper model size: "tiny" | "base" | "small" | "medium" | "large"
 WHISPER_MODEL = "base"
-
-# ============================================================
 
 def main():
     all_docs = []
 
     print("\n>> Loading text/markdown files...")
-    for folder in TEXT_FOLDERS:
+    for folder in config.TEXT_FOLDERS:
         docs = load_text_files(folder)
         all_docs.extend(docs)
         print(f"   {len(docs)} docs from {folder}")
@@ -62,7 +44,7 @@ def main():
         print("   (no video files configured)")
 
     if not all_docs:
-        print("\nWARNING: No documents loaded! Check your TEXT_FOLDERS / HTML_URLS / VIDEO_FILES above.")
+        print("\nWARNING: No documents loaded! Check your TEXT_FOLDERS in config.py")
         return
 
     print(f"\n>> Building index from {len(all_docs)} total documents...")
