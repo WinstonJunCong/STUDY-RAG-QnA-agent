@@ -13,10 +13,11 @@ class QueryRequest(BaseModel):
 
 class QueryResponse(BaseModel):
     answer: str
-    sources: List[str]
+    sources: list[str]
     timing_ms: int
     cache_hit: bool = False
     hit_type: Optional[str] = None
+    job_id: Optional[str] = None
 
 
 # --- Ingest ---
@@ -29,8 +30,27 @@ class IngestResponse(BaseModel):
     status: str
     chunks: int = 0
     documents: Optional[int] = None
-    timing_ms: int
+    timing_ms: int = 0
     message: Optional[str] = None
+    job_id: Optional[str] = None
+
+
+# --- Jobs ---
+class JobStatusResponse(BaseModel):
+    job_id: str
+    status: str
+    source: str
+    file_path: Optional[str] = None
+    progress: int
+    result: Optional[dict] = None
+    error: Optional[str] = None
+    created_at: str
+    completed_at: Optional[str] = None
+
+
+class JobListResponse(BaseModel):
+    jobs: List[JobStatusResponse]
+    count: int
 
 
 # --- Index ---

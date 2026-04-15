@@ -1,46 +1,17 @@
 # query_logger.py
-# SQLite-based query logger with embeddings for FAQ generation
+# Query logger using DB abstraction (SQLite or PostgreSQL)
 
-import sqlite3
-import json
-import os
-from datetime import datetime
 from typing import Optional
-from pathlib import Path
-
-import config
+from services.database import get_query_store
 
 
 class QueryLogger:
     """
-    Logs queries to SQLite for FAQ generation.
-    Stores: query text, timestamp, embedding (for semantic clustering)
+    Logs queries using configured backend (SQLite or PostgreSQL).
     """
 
-    def __init__(self, db_path: str = "./data/query_log.db"):
-        self.db_path = db_path
-        self._ensure_db()
-
-    def _ensure_db(self):
-        """Create tables if they don't exist."""
-        os.makedirs(os.path.dirname(self.db_path) or ".", exist_ok=True)
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS queries (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                query_text TEXT NOT NULL,
-                timestamp TEXT NOT NULL,
-                answer TEXT,
-                hit_cache BOOLEAN DEFAULT 0,
-                embedding BLOB
-            )
-        """)
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_timestamp ON queries(timestamp)
-        """)
-        conn.commit()
-        conn.close()
+    def __init__(self):
+        self._store = get_query_store()
 
     def log_query(
         self,
@@ -50,80 +21,23 @@ class QueryLogger:
         embedding: Optional[bytes] = None
     ):
         """Log a query."""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO queries (query_text, timestamp, answer, hit_cache, embedding) VALUES (?, ?, ?, ?, ?)",
-            (query_text, datetime.now().isoformat(), answer, hit_cache, embedding)
-        )
-        conn.commit()
-        conn.close()
+        self._store.log_query(query_text, answer, hit_cache, embedding)
 
     def get_recent_queries(self, hours: int = 336) -> list:
-        """
-        Get queries from the last N hours.
-        Default: 336 hours = 2 weeks (bi-weekly FAQ generation)
-        """
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT id, query_text, timestamp, answer, hit_cache
-            FROM queries
-            WHERE timestamp >= datetime('now', '-' || ? || ' hours')
-            ORDER BY timestamp DESC
-            """,
-            (hours,)
-        )
-        rows = cursor.fetchall()
-        conn.close()
-        return [
-            {
-                "id": row[0],
-                "query_text": row[1],
-                "timestamp": row[2],
-                "answer": row[3],
-                "hit_cache": bool(row[4])
-            }
-            for row in rows
-        ]
+        """Get queries from the last N hours."""
+        return self._store.get_recent_queries(hours)
 
     def get_all_queries(self) -> list:
         """Get all logged queries."""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, query_text, timestamp, answer, hit_cache FROM queries ORDER BY timestamp DESC"
-        )
-        rows = cursor.fetchall()
-        conn.close()
-        return [
-            {
-                "id": row[0],
-                "query_text": row[1],
-                "timestamp": row[2],
-                "answer": row[3],
-                "hit_cache": bool(row[4])
-            }
-            for row in rows
-        ]
+        return self._store.get_all_queries()
 
     def get_query_count(self) -> int:
         """Get total query count."""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM queries")
-        count = cursor.fetchone()[0]
-        conn.close()
-        return count
+        return self._store.get_query_count()
 
     def clear(self):
         """Clear all logged queries."""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM queries")
-        conn.commit()
-        conn.close()
+        self._store.clear()
 
 
 def get_query_logger() -> QueryLogger:

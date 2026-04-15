@@ -12,58 +12,111 @@ Documents about:
 - Training materials
 - Studio workflow documentation
 
-## Configuration
-
-| Config | Value | Notes |
-|--------|-------|-------|
-| `EMBED_MODEL` | Octen-8B | Local embedding model |
-| `OLLAMA_MODEL` | mistral | Local LLM |
-| `TEXT_FOLDERS` | `./.input` | Document source |
-| `FAQ_FILE` | `data/faq_entries.md` | Human-approved FAQs (Markdown) |
-| `FAQ_DRAFTS_FILE` | `data/faq_drafts.md` | Generated drafts (pending review) |
-| `SIMILARITY_THRESHOLD` | `0.9` | Query deduplication |
-| `MIN_QUERY_COUNT` | `3` | Min queries to trigger FAQ generation |
-| `FAQ_SCHEDULE` | `biweekly` | Every 2 weeks |
-
 ---
 
 ## Phased Implementation
 
-### Phase 1: Core API (Priority)
+### Phase 1: Core API (COMPLETED)
 
-**Goal**: FastAPI server with query cache, SQLite logger, full CRUD endpoints
+**Status:** ✅ Complete
 
-**Deliverables**:
-- FastAPI application with all endpoints
-- Refactored `RAGService` class
-- Query cache layer (exact + semantic match)
+- FastAPI server with all CRUD endpoints
+- RAGService singleton
+- Query cache (exact match)
 - SQLite query logger
+- FAQ endpoints with human review workflow
 
-**API Endpoints**:
+---
+
+### Phase 2: External DB Support + Async Ingestion (IN PROGRESS)
+
+**Goal:** PostgreSQL support, async file upload ingestion
+
+**Status:** 🔄 In Progress
+
+#### Configuration
+
+Environment Variables (`.env`):
+
+```bash
+# Database - PostgreSQL (query log)
+DB_TYPE=postgresql
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=studio_kb
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+
+# ChromaDB (persistent storage)
+CHROMA_PERSIST_DIR=./data/chroma_db
+
+# Ollama (LLM)
+OLLAMA_BASE_URL=http://localhost:11434
+```
+
+#### Database Abstraction
+
+```python
+# services/database/query_store.py
+class QueryStore(Protocol):
+    def log_query(...)
+    def get_recent_queries(...)
+    def get_query_count(...)
+    def clear(...)
+```
+
+**Auto-detect:** If `DB_TYPE=postgresql` and env vars present → use PostgreSQL, otherwise fallback to SQLite.
+
+#### Async Ingestion with Job Queue
+
+**API Endpoints:**
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/health` | GET | Health check |
-| `/query` | POST | Ask question (logs + cache-check + LLM) |
-| `/ingest` | POST | Rebuild index |
-| `/index/status` | GET | Index stats |
-| `/index` | DELETE | Clear index |
-| `/faq` | GET | List approved FAQs |
-| `/faq/drafts` | GET | List draft FAQs |
-| `/faq/generate` | POST | Generate drafts from queries |
-| `/faq/approve` | POST | Approve drafts, re-ingest |
-| `/cache/clear` | DELETE | Clear query cache |
+| `/ingest` | POST | Start async ingestion (returns job_id) |
+| `/ingest/upload` | POST | Upload file + start ingestion |
+| `/jobs/{job_id}` | GET | Get job status |
+| `/jobs` | GET | List all jobs |
 
-### Phase 2: FAQ Auto-Enhancement
+**Job Model:**
+```python
+class IngestionJob:
+    job_id: str
+    status: "pending" | "processing" | "completed" | "failed" | "cancelled"
+    source: str  # "folder", "upload", "url", "text"
+    file_path: str | None
+    progress: int  # 0-100
+    result: dict | None
+    error: str | None
+    created_at: datetime
+    completed_at: datetime | None
+```
 
-**Goal**: Bi-weekly FAQ generation with human review workflow
+#### File Upload
 
-**Deliverables**:
+```python
+# POST /ingest/upload
+- Accept: multipart/form-data
+- Save to: ./data/uploads/{job_id}_{filename}
+- Queue ingestion job
+- Return job_id immediately
+```
+
+**Supported:** `.txt`, `.md`, `.pdf`, `.docx`, `.html`
+
+**Cleanup:** Files deleted after processing completes.
+
+---
+
+### Phase 3: FAQ Auto-Enhancement (PENDING)
+
+**Goal:** Bi-weekly FAQ generation with human review workflow
+
+**Deliverables:**
 - Query clustering (semantic similarity > 0.9, count >= 3)
 - FAQ draft generation from indexed documents
 - Human review workflow (markdown files)
 - Bi-weekly scheduler
-- `/faq/approve` → re-ingest pipeline
 
 ---
 
@@ -77,31 +130,41 @@ chat_agent/
 │   ├── models.py            # Pydantic schemas
 │   └── routes/
 │       ├── __init__.py
-│       ├── query.py         # /query (cache-first)
-│       ├── ingest.py        # /ingest
+│       ├── query.py         # /query
+│       ├── ingest.py        # /ingest (async)
+│       ├── jobs.py          # /jobs
 │       ├── index.py         # /index/*
-│       └── faq.py           # /faq/*
+│       ├── faq.py           # /faq/*
+│       └── cache.py         # /cache/*
 ├── services/
 │   ├── __init__.py
+│   ├── database/
+│   │   ├── __init__.py
+│   │   ├── base.py
+│   │   ├── query_store.py
+│   │   │   ├── sqlite_store.py
+│   │   │   └── postgres_store.py
+│   │   └── vector_store.py
+│   │       └── chroma_store.py
 │   ├── rag_service.py       # Core RAG service
-│   ├── query_logger.py      # SQLite query log
-│   ├── cache.py             # Exact + semantic cache
-│   ├── faq_generator.py    # FAQ draft generation
-│   └── scheduler.py        # Bi-weekly scheduler
+│   ├── query_logger.py      # Uses DB abstraction
+│   ├── cache.py             # Query cache
+│   ├── job_queue.py         # Async job processing
+│   └── scheduler.py         # Bi-weekly scheduler
 ├── data/
-│   ├── query_log.db         # SQLite (auto-created)
+│   ├── uploads/             # Temporary upload storage
 │   ├── faq_entries.md       # Human-approved FAQs
-│   └── faq_drafts.md        # Generated drafts (pending)
-├── config.py                # Updated with FAQ configs
-├── ingestion.py            # CLI ingestion (keep for now)
-├── query.py                # CLI query (keep for now)
+│   └── faq_drafts.md        # Generated drafts
+├── config.py                # Environment-based config
+├── ingestion.py             # CLI ingestion
+├── query.py                 # CLI query
 ├── pipeline/
 │   └── index_builder.py    # Refactored
 ├── agent/
-│   └── qa.py               # Core QA logic
+│   └── qa.py                # Core QA logic
 ├── scripts/
-│   └── run_api.py          # API runner
-└── requirements.txt        # + fastapi, uvicorn, aiosqlite
+│   └── run_api.py           # API runner
+└── requirements.txt
 ```
 
 ---
@@ -120,41 +183,38 @@ Incoming Query
 └────────┬────────┘
          │ No
          ▼
-┌─────────────────┐
-│  Semantic Match │──Yes──▶ Return cached answer + update hit count
-│  (cosim > 0.9)  │
-└────────┬────────┘
-         │ No
-         ▼
     Process via LLM
     (normal flow)
          │
          ▼
-    Log query for FAQ
+    Log query (PostgreSQL/SQLite)
 ```
 
-### FAQ Generation Flow (Bi-Weekly / Manual)
+### Async Ingestion Flow
 
 ```
-1. Scheduler triggers (bi-weekly)
-       │
-       ▼
-2. QueryLogger aggregates queries
-       │
-       ▼
-3. FAQGenerator clusters similar queries (cosim > 0.9, count >= 3)
-       │
-       ▼
-4. Generate FAQ drafts from indexed documents
-       │
-       ▼
-5. Write to data/faq_drafts.md (NOT auto-ingested)
-       │
-       ▼
-6. Human reviews/edits in data/faq_entries.md
-       │
-       ▼
-7. Admin calls POST /faq/approve → re-ingest
+POST /ingest/upload (file)
+      │
+      ▼
+Save file to ./data/uploads/
+      │
+      ▼
+Create job (status: pending)
+      │
+      ▼
+Return job_id immediately
+      │
+      ▼
+Background worker picks up job
+      │
+      ▼
+Process document → Embed → Store in ChromaDB
+      │
+      ▼
+Update job status (completed/failed)
+      │
+      ▼
+Cleanup temp file
 ```
 
 ---
@@ -164,4 +224,5 @@ Incoming Query
 - Documents located in `./.input` directory
 - FAQ files are Markdown for human editability
 - Service can be embedded in another agentic AI as subagent
-- `RAGService` can be used in-process (no HTTP overhead)
+- PostgreSQL used for query logging, ChromaDB for vectors
+- Job queue in-memory (can be extended to Redis later)

@@ -59,7 +59,7 @@ def configure_settings():
 
 def get_vector_store():
     """Returns a ChromaDB-backed vector store (persisted to disk)."""
-    db = chromadb.PersistentClient(path=config.CHROMA_PATH)
+    db = chromadb.PersistentClient(path=config.CHROMA_PERSIST_DIR)
     collection = db.get_or_create_collection(config.CHROMA_COLLECTION)
     return ChromaVectorStore(chroma_collection=collection)
 
@@ -122,7 +122,7 @@ def build_index(documents: list[Document]) -> VectorStoreIndex:
     """
     configure_settings()
 
-    chroma_client = chromadb.PersistentClient(path=config.CHROMA_PATH)
+    chroma_client = chromadb.PersistentClient(path=config.CHROMA_PERSIST_DIR)
     try:
         chroma_client.delete_collection(config.CHROMA_COLLECTION)
         print(f"[index_builder] Cleared existing ChromaDB collection")
@@ -192,9 +192,69 @@ def load_index() -> VectorStoreIndex:
 
 def delete_index():
     """Delete the ChromaDB collection."""
-    chroma_client = chromadb.PersistentClient(path=config.CHROMA_PATH)
+    chroma_client = chromadb.PersistentClient(path=config.CHROMA_PERSIST_DIR)
     try:
         chroma_client.delete_collection(config.CHROMA_COLLECTION)
         print("[index_builder] Deleted ChromaDB collection")
     except Exception as e:
         print(f"[index_builder] No collection to delete: {e}")
+
+
+def add_document_to_index(filepath: str) -> dict:
+    """
+    Add a single document to the existing index.
+    Used for file upload ingestion.
+    """
+    path = Path(filepath)
+    if not path.exists():
+        return {"status": "error", "message": f"File not found: {filepath}"}
+    
+    configure_settings()
+    
+    print(f"   Parsing: {path.name}")
+    elements = partition_document(filepath)
+    
+    chunks = chunk_by_title(
+        elements,
+        max_characters=config.CHUNK_MAX_CHARS,
+        new_after_n_chars=config.CHUNK_SOFT_LIMIT,
+        combine_text_under_n_chars=config.CHUNK_MIN_CHARS,
+        multipage_sections=True,
+    )
+    
+    nodes = elements_to_nodes(chunks, filepath)
+    print(f"      -> {len(nodes)} chunks")
+    
+    # Add to existing index
+    from services.rag_service import get_rag_service
+    rag = get_rag_service()
+    index = rag.load_index()
+    
+    for node in nodes:
+        index.insert(node)
+    
+    # Update BM25
+    bm25_path = "./data/bm25_nodes.json"
+    if Path(bm25_path).exists():
+        with open(bm25_path, "r", encoding="utf-8") as f:
+            nodes_data = json.load(f)
+    else:
+        nodes_data = []
+    
+    nodes_data.extend([
+        {
+            "id": node.node_id,
+            "text": node.text,
+            "metadata": node.metadata
+        }
+        for node in nodes
+    ])
+    
+    with open(bm25_path, "w", encoding="utf-8") as f:
+        json.dump(nodes_data, f, ensure_ascii=False)
+    
+    return {
+        "status": "ok",
+        "chunks": len(nodes),
+        "file": path.name
+    }

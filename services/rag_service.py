@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from llama_index.core import VectorStoreIndex
+from llama_index.core import Settings
 
 import config
 from pipeline.index_builder import (
@@ -26,23 +27,48 @@ class RAGService:
 
     _instance = None
     _index: Optional[VectorStoreIndex] = None
+    _embedding_loaded = False
+    _warmed = False
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
+            cls._instance._initialized = False
         return cls._instance
 
     def __init__(self):
+        if self._initialized:
+            return
         self._index = None
         self._index_stats = {"chunk_count": 0, "last_updated": None}
+        self._initialized = True
 
     @property
     def index_loaded(self) -> bool:
         return self._index is not None
 
     @property
+    def embedding_loaded(self) -> bool:
+        return self._embedding_loaded or Settings.embed_model is not None
+
+    @property
+    def warmed(self) -> bool:
+        return self._warmed
+
+    @property
     def index_stats(self) -> dict:
         return self._index_stats
+
+    def prewarm(self):
+        """
+        Pre-warm the service by loading the embedding model.
+        Called at server startup to avoid cold start on first request.
+        """
+        if not self._warmed:
+            print("[RAG] Pre-warming embedding model...")
+            configure_settings()  # This loads the embed model into memory
+            self._warmed = True
+            print("[RAG] Embedding model pre-loaded")
 
     def load_index(self) -> VectorStoreIndex:
         """Load existing index from ChromaDB."""
@@ -122,7 +148,33 @@ class RAGService:
 
     def query(self, question: str, top_k: int = None) -> dict:
         """
-        Query the RAG system.
+        Query the RAG system asynchronously.
+        Returns a job_id for polling.
+
+        Args:
+            question: The question to ask
+            top_k: Number of chunks to retrieve (defaults to config.TOP_K)
+
+        Returns:
+            dict with job_id
+        """
+        from services.job_queue import get_job_queue
+        
+        job_queue = get_job_queue()
+        job_id = job_queue.create_job(
+            source="query",
+            query_text=question,
+            top_k=top_k
+        )
+        
+        return {
+            "job_id": job_id,
+            "status": "queued"
+        }
+
+    def query_sync(self, question: str, top_k: int = None) -> dict:
+        """
+        Query the RAG system synchronously (blocking).
 
         Args:
             question: The question to ask
