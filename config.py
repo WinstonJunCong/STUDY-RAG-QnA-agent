@@ -8,9 +8,25 @@ load_dotenv()
 # ---------------- Embedding ----------------
 EMBED_MODEL = os.getenv("EMBED_MODEL", "D:\\huggingface_models\\Octen-8B")
 
-# ---------------- LLM (via Ollama) ----------------
+# External embedding server (llama.cpp)
+# Set USE_EXTERNAL_EMBED=true to use external server instead of local embedding
+USE_EXTERNAL_EMBED = os.getenv("USE_EXTERNAL_EMBED", "false")
+EMBED_SERVER_URL = os.getenv("EMBED_SERVER_URL", "http://localhost:8080/v1")
+
+# ---------------- LLM (via Ollama or external) ----------------
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "mistral")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+
+# External LLM server (OpenAI-compatible)
+# Set USE_EXTERNAL_LLM=true to use external server instead of local Ollama
+USE_EXTERNAL_LLM = os.getenv("USE_EXTERNAL_LLM", "false")
+LLM_SERVER_URL = os.getenv("LLM_SERVER_URL", "http://lsaisvr-001:7046/v1")
+LLM_MODEL = os.getenv("LLM_MODEL", "gemma4")
+LLM_API_KEY = os.getenv("LLM_API_KEY", "dummy")
+
+# LLM mode: "openai_external" uses OpenAI library with external server
+# (Other modes can be added: "local_ollama", "openai_api", etc.)
+LLM_MODE = os.getenv("LLM_MODE", "openai_external")
 
 # ---------------- Database Configuration ----------------
 # DB_TYPE: "sqlite" or "postgresql"

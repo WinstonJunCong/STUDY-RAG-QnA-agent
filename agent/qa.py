@@ -217,16 +217,21 @@ def ask(question: str, index: VectorStoreIndex) -> dict:
             "sources": list of source labels
         }
     """
-    timing_enabled = getattr(config, "DEBUG_TIMING", False)
+    # Always enable timing for profiling
+    timing_enabled = True
     total_start = time.perf_counter()
 
-    print(f"\n[qa] Question: {question[:60]}...") if timing_enabled else None
+    print(f"\n[qa] Question: {question[:60]}...")
 
     retriever = build_retriever(index)
 
-    with Timer("1. Retrieval", timing_enabled):
+    with Timer("1. Retrieval (vector+BM25)", timing_enabled):
         nodes = retriever.retrieve(question)
         print(f"[qa] Retrieved {len(nodes)} chunks")
+
+    if timing_enabled:
+        embed_time = time.perf_counter()
+        print(f"[qa] Embedding query: {(embed_time - total_start) * 1000:.0f}ms")
 
     # Keyword-based relevance check: if question contains specific terms (like
     # product names, brand names, specific features), verify they appear together
@@ -270,9 +275,58 @@ def ask(question: str, index: VectorStoreIndex) -> dict:
         dbg_console = Console()
         dbg_console.print(Panel(prompt, title="[bold magenta]DEBUG: Exact Prompt Sent to LLM[/bold magenta]", border_style="magenta"))
 
+    llm_start = time.perf_counter()
     with Timer("3. LLM generation", timing_enabled):
         from llama_index.core import Settings
-        response = Settings.llm.complete(prompt)
+        
+        llm_mode = getattr(config, "LLM_MODE", "local_ollama")
+        
+        if llm_mode == "local_ollama":
+            from llama_index.llms.ollama import Ollama
+            print(f"[qa] Using OLLAMA: {config.OLLAMA_MODEL} at {config.OLLAMA_BASE_URL}")
+            
+            llm = Ollama(
+                model=config.OLLAMA_MODEL,
+                base_url=config.OLLAMA_BASE_URL
+            )
+            response = llm.complete(prompt)
+            response_text = response.text
+            
+        else:
+            from openai import OpenAI
+            print(f"[qa] Using OPENAI LIBRARY to {config.LLM_SERVER_URL}")
+            
+            try:
+                client = OpenAI(
+                    api_key=config.LLM_API_KEY or "dummy",
+                    base_url=config.LLM_SERVER_URL
+                )
+                
+                response = client.chat.completions.create(
+                    model=config.LLM_MODEL,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=2000,
+                    timeout=120.0
+                )
+                
+                message_obj = response.choices[0].message
+                response_text = message_obj.content or message_obj.reasoning_content or ""
+                
+            except Exception as e:
+                print(f"[qa] LLM ERROR: {e}")
+                raise
+        
+        class SimpleResponse:
+            def __init__(self, text):
+                self.text = text
+            def __str__(self):
+                return self.text
+        
+        response = SimpleResponse(response_text)
+
+    if timing_enabled:
+        llm_time = (time.perf_counter() - llm_start) * 1000
+        print(f"[qa] LLM response time: {llm_time:.0f}ms")
 
     if getattr(config, "DEBUG_LLM", False):
         dbg_console.print(Panel(str(response), title="[bold magenta]DEBUG: Raw LLM Response[/bold magenta]", border_style="magenta"))
@@ -299,7 +353,7 @@ def ask(question: str, index: VectorStoreIndex) -> dict:
 
     if timing_enabled:
         total_elapsed = (time.perf_counter() - total_start) * 1000
-        print(f"[TIMING] Total pipeline: {total_elapsed:.0f}ms\n")
+        print(f"[qa] TOTAL pipeline time: {total_elapsed:.0f}ms\n")
 
     return {
         "answer": str(response).strip(),

@@ -65,10 +65,24 @@ class RAGService:
         Called at server startup to avoid cold start on first request.
         """
         if not self._warmed:
-            print("[RAG] Pre-warming embedding model...")
-            configure_settings()  # This loads the embed model into memory
-            self._warmed = True
-            print("[RAG] Embedding model pre-loaded")
+            if config.USE_EXTERNAL_EMBED == "true":
+                print("[RAG] Pre-warming external embedding server...")
+                import requests
+                try:
+                    base_url = config.EMBED_SERVER_URL.rstrip("/v1").rstrip("/")
+                    response = requests.get(f"{base_url}/health", timeout=5)
+                    if response.status_code == 200:
+                        self._warmed = True
+                        print("[RAG] External embedding server connected")
+                    else:
+                        print(f"[RAG] External server returned: {response.status_code}")
+                except Exception as e:
+                    print(f"[RAG] Failed to connect to external server: {e}")
+            else:
+                print("[RAG] Pre-warming embedding model...")
+                configure_settings()  # This loads the embed model into memory
+                self._warmed = True
+                print("[RAG] Embedding model pre-loaded")
 
     def load_index(self) -> VectorStoreIndex:
         """Load existing index from ChromaDB."""
@@ -185,6 +199,13 @@ class RAGService:
         """
         from agent.qa import ask
 
+        # Log which models are being used
+        embed_type = "external" if config.USE_EXTERNAL_EMBED == "true" else "local"
+        llm_type = "external" if config.USE_EXTERNAL_LLM == "true" else "local"
+        print(f"[query] Question: {question[:50]}...")
+        print(f"[query] Using embedding: {embed_type}")
+        print(f"[query] Using LLM: {llm_type} ({config.LLM_MODEL if llm_type == 'external' else config.OLLAMA_MODEL})")
+
         if top_k is None:
             top_k = config.TOP_K
 
@@ -195,6 +216,7 @@ class RAGService:
         result = ask(question, index)
 
         elapsed = (time.perf_counter() - start_time) * 1000
+        print(f"[query] Completed in {elapsed/1000:.1f}s")
 
         return {
             "answer": result["answer"],

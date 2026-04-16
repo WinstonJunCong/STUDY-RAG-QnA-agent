@@ -19,6 +19,8 @@ async def query(request: QueryRequest):
     if not request.question:
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
+    print(f"[query] API received: {request.question[:50]}...")
+
     rag = get_rag_service()
     cache = get_query_cache()
     logger = get_query_logger()
@@ -72,6 +74,8 @@ async def query_sync(request: QueryRequest):
     """
     if not request.question:
         raise HTTPException(status_code=400, detail="Question cannot be empty")
+
+    print(f"[query] Sync API received: {request.question[:50]}...")
 
     rag = get_rag_service()
     cache = get_query_cache()

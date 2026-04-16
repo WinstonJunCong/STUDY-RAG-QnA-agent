@@ -13,6 +13,13 @@ async def lifespan(app: FastAPI):
     # Startup: pre-warm services
     print("[API] Starting Studio Knowledge API...")
     
+    # Log which services are being used
+    import config
+    embed_type = "external" if config.USE_EXTERNAL_EMBED == "true" else "local"
+    llm_type = "external" if config.USE_EXTERNAL_LLM == "true" else "local"
+    print(f"[API] Using embedding: {embed_type} - {config.EMBED_SERVER_URL if embed_type == 'external' else config.EMBED_MODEL}")
+    print(f"[API] Using LLM: {llm_type} - {config.LLM_SERVER_URL if llm_type == 'external' else config.OLLAMA_BASE_URL} ({config.LLM_MODEL if llm_type == 'external' else config.OLLAMA_MODEL})")
+    
     # PRE-WARM: Load embedding model at startup to avoid cold start
     from services.rag_service import get_rag_service
     rag = get_rag_service()
@@ -58,15 +65,30 @@ async def health_check():
     from services.rag_service import get_rag_service
     from services.cache import get_query_cache
     from services.query_logger import get_query_logger
+    import config
 
     rag = get_rag_service()
     cache = get_query_cache()
     logger = get_query_logger()
 
+    # Embedding model info
+    embedding_info = {
+        "external": config.USE_EXTERNAL_EMBED == "true",
+        "url": config.EMBED_SERVER_URL if config.USE_EXTERNAL_EMBED == "true" else config.EMBED_MODEL,
+    }
+
+    # LLM model info
+    llm_info = {
+        "external": config.USE_EXTERNAL_LLM == "true",
+        "url": config.LLM_SERVER_URL if config.USE_EXTERNAL_LLM == "true" else config.OLLAMA_BASE_URL,
+        "model": config.LLM_MODEL if config.USE_EXTERNAL_LLM == "true" else config.OLLAMA_MODEL,
+    }
+
     return {
         "status": "ok",
         "warmed": rag.warmed,
-        "embedding_loaded": rag.embedding_loaded,
+        "embedding": embedding_info,
+        "llm": llm_info,
         "index_loaded": rag.index_loaded,
         "index_stats": rag.index_stats,
         "cache_stats": cache.get_stats(),
