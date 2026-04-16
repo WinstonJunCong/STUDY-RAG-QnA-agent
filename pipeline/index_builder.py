@@ -23,7 +23,6 @@ from llama_index.core import VectorStoreIndex, StorageContext, Settings, Documen
 from llama_index.core.schema import TextNode
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-from llama_index.llms.ollama import Ollama
 from unstructured.partition.md import partition_md
 from unstructured.partition.text import partition_text
 from unstructured.chunking.title import chunk_by_title
@@ -61,28 +60,7 @@ def configure_settings():
         Settings.embed_model = OctenEmbedding(model_name=config.EMBED_MODEL, device="cuda")
         print(f"[settings] Embed: {config.EMBED_MODEL} (local)")
     
-    # LLM configuration
-    if config.USE_EXTERNAL_LLM == "true":
-        from llama_index.llms.openai_like import OpenAILike
-        
-        Settings.llm = OpenAILike(
-            model=config.LLM_MODEL,
-            api_key="dummy",
-            api_base=config.LLM_SERVER_URL,
-            is_chat_model=True,
-            request_timeout=120.0,
-            http_headers={
-                "Authorization": f"Bearer {config.LLM_API_KEY or 'dummy'}"
-            },
-        )
-        print(f"[settings] LLM: {config.LLM_SERVER_URL} (external) model={config.LLM_MODEL}")
-    else:
-        Settings.llm = Ollama(
-            model=config.OLLAMA_MODEL,
-            base_url=config.OLLAMA_BASE_URL,
-            request_timeout=120.0,
-        )
-        print(f"[settings] LLM: {config.OLLAMA_MODEL} (local)")
+    print(f"[settings] LLM: {config.LLM_SERVER_URL} ({config.LLM_MODEL}) - uses direct OpenAI")
 
 
 def get_vector_store():

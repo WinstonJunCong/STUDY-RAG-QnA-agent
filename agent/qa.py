@@ -1,5 +1,5 @@
 # agent/qa.py
-# Retrieves relevant chunks and answers questions using the local Ollama LLM.
+# Retrieves relevant chunks and answers questions using LLM.
 # Includes source citations in every answer.
 #
 # Retrieval strategy (hybrid):
@@ -277,51 +277,14 @@ def ask(question: str, index: VectorStoreIndex) -> dict:
 
     llm_start = time.perf_counter()
     with Timer("3. LLM generation", timing_enabled):
-        from llama_index.core import Settings
-        
-        llm_mode = getattr(config, "LLM_MODE", "local_ollama")
-        
-        if llm_mode == "local_ollama":
-            from llama_index.llms.ollama import Ollama
-            print(f"[qa] Using OLLAMA: {config.OLLAMA_MODEL} at {config.OLLAMA_BASE_URL}")
-            
-            llm = Ollama(
-                model=config.OLLAMA_MODEL,
-                base_url=config.OLLAMA_BASE_URL
-            )
-            response = llm.complete(prompt)
-            response_text = response.text
-            
-        else:
-            from openai import OpenAI
-            print(f"[qa] Using OPENAI LIBRARY to {config.LLM_SERVER_URL}")
-            
-            try:
-                client = OpenAI(
-                    api_key=config.LLM_API_KEY or "dummy",
-                    base_url=config.LLM_SERVER_URL
-                )
-                
-                response = client.chat.completions.create(
-                    model=config.LLM_MODEL,
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=2000,
-                    timeout=120.0
-                )
-                
-                message_obj = response.choices[0].message
-                response_text = message_obj.content or message_obj.reasoning_content or ""
-                
-            except Exception as e:
-                print(f"[qa] LLM ERROR: {e}")
-                raise
-        
+        from services.llm_client import complete
+        print(f"[qa] Using LLM: {config.LLM_SERVER_URL} ({config.LLM_MODEL})")
+        response_text = complete(prompt)
         class SimpleResponse:
             def __init__(self, text):
                 self.text = text
             def __str__(self):
                 return self.text
-        
         response = SimpleResponse(response_text)
 
     if timing_enabled:

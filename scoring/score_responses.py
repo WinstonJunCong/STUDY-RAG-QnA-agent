@@ -19,9 +19,6 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from llama_index.core import Settings
-from llama_index.llms.ollama import Ollama
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 import config
 
 
@@ -57,14 +54,8 @@ Score 0-49: Fail - incorrect or missing key information
 
 
 def configure_llm():
-    """Configure Ollama LLM for scoring."""
-    Settings.embed_model = HuggingFaceEmbedding(model_name=config.EMBED_MODEL)
-    Settings.llm = Ollama(
-        model=config.OLLAMA_MODEL,
-        base_url=config.OLLAMA_BASE_URL,
-        request_timeout=120.0,
-    )
-    print(f"[scoring] LLM: {config.OLLAMA_MODEL}")
+    """Configure LLM for scoring."""
+    print(f"[scoring] LLM: {config.LLM_SERVER_URL} ({config.LLM_MODEL})")
 
 
 def get_response_columns(df):
@@ -97,8 +88,8 @@ def score_response(question, expected, pass_condition, response):
     )
     
     try:
-        response_llm = Settings.llm.complete(prompt)
-        result_text = str(response_llm).strip()
+        from services.llm_client import complete
+        result_text = complete(prompt).strip()
         
         # Parse JSON from response
         json_match = re.search(r'\{[^}]+\}', result_text, re.DOTALL)

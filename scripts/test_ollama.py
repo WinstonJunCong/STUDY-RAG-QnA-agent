@@ -1,16 +1,14 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import config
-from llama_index.llms.ollama import Ollama
+from services.llm_client import complete
 
 try:
-    llm = Ollama(
-        model="llama3.2",
-        base_url=config.OLLAMA_BASE_URL,
-        request_timeout=120.0,
-        context_window=2048,
-        num_output=256, 
-    )
-    print("Testing connection to Ollama...")
-    res = llm.complete("Hello")
+    print(f"Testing connection to {config.LLM_SERVER_URL}...")
+    print(f"Model: {config.LLM_MODEL}")
+    res = complete("Hello", max_tokens=50)
     print("Response:", res)
 except Exception as e:
     print("Error type:", type(e))
