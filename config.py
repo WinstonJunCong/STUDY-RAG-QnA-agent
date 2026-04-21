@@ -76,5 +76,5 @@ MIN_QUERY_COUNT = 3             # Min queries to trigger FAQ generation
 FAQ_SCHEDULE = "biweekly"        # "biweekly" or "manual"
 
 # ---------------- Debugging ----------------
-DEBUG_LLM = False
+DEBUG_LLM = True
 DEBUG_TIMING = False

@@ -292,8 +292,8 @@ def ask(question: str, index: VectorStoreIndex) -> dict:
         print(f"[qa] LLM response time: {llm_time:.0f}ms")
 
     if getattr(config, "DEBUG_LLM", False):
-        dbg_console.print(Panel(str(response), title="[bold magenta]DEBUG: Raw LLM Response[/bold magenta]", border_style="magenta"))
-
+        # dbg_console.print(Panel(str(response), title="[bold magenta]DEBUG: Raw LLM Response[/bold magenta]", border_style="magenta"))
+        print(response_text)
     with Timer("4. Collect sources", timing_enabled):
         sources = []
         for node in nodes:

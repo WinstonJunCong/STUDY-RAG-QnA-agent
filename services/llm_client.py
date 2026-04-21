@@ -12,13 +12,17 @@ def get_client() -> OpenAI:
         )
     return _client
 
-def complete(prompt: str, max_tokens: int = 2000, timeout: float = 120.0) -> str:
+def complete(prompt: str, max_tokens: int = 128000, timeout: float = 120.0) -> str:
     client = get_client()
     response = client.chat.completions.create(
         model=config.LLM_MODEL,
         messages=[{"role": "user", "content": prompt}],
         max_tokens=max_tokens,
         timeout=timeout,
+        extra_body={
+        "thinking": False
+    }
     )
+    finish_reason = response.choices[0].finish_reason
     msg = response.choices[0].message
-    return msg.content or msg.reasoning_content or ""
+    return response #msg.content if finish_reason == "stop" else "exploded response, {reason: " + finish_reason + "}"
