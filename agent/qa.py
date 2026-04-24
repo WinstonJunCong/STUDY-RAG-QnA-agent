@@ -205,12 +205,6 @@ def ask(question: str, index: VectorStoreIndex, memory=None) -> dict:
         context_parts = [format_source(n) for n in nodes]
         context_str = "\n\n---\n\n".join(context_parts)
         
-        # Prepend memory context if available
-        if memory_context:
-            full_context = f"{memory_context}\n\n---\n\n{context_str}"
-        else:
-            full_context = context_str
-        
         prompt = QA_PROMPT.format(
             context_str=context_str,
             query_str=question,
