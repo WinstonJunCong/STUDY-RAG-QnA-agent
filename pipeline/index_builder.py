@@ -3,7 +3,6 @@
 # Automatically handles markdown, tables, lists, and preserves heading hierarchy.
 
 import chromadb
-import json
 from llama_index.core import VectorStoreIndex, StorageContext, Settings, Document
 from llama_index.core.schema import TextNode
 from llama_index.vector_stores.chroma import ChromaVectorStore
@@ -101,7 +100,7 @@ def build_index(documents: list[Document]) -> VectorStoreIndex:
     chroma_client = chromadb.PersistentClient(path=config.CHROMA_PATH)
     try:
         chroma_client.delete_collection(config.CHROMA_COLLECTION)
-        print(f"[index_builder] Cleared existing ChromaDB collection")
+        print("[index_builder] Cleared existing ChromaDB collection")
     except Exception:
         pass
 
@@ -129,19 +128,6 @@ def build_index(documents: list[Document]) -> VectorStoreIndex:
 
     print(f"[index_builder] Total chunks: {len(all_nodes)}")
 
-    # Save nodes to JSON for BM25 retriever
-    bm25_path = "./data/bm25_nodes.json"
-    nodes_data = [
-        {
-            "id": node.node_id,
-            "text": node.text,
-            "metadata": node.metadata
-        }
-        for node in all_nodes
-    ]
-    with open(bm25_path, "w", encoding="utf-8") as f:
-        json.dump(nodes_data, f, ensure_ascii=False)
-    print(f"[index_builder] Saved {len(nodes_data)} nodes to {bm25_path} for BM25")
 
     vector_store = get_vector_store()
     storage_context = StorageContext.from_defaults(vector_store=vector_store)
@@ -159,7 +145,6 @@ def build_index(documents: list[Document]) -> VectorStoreIndex:
 
 def load_index() -> VectorStoreIndex:
     """Load existing index from ChromaDB."""
-    configure_settings()
     vector_store = get_vector_store()
     index = VectorStoreIndex.from_vector_store(vector_store)
     print("[index_builder] Index loaded from ChromaDB")
