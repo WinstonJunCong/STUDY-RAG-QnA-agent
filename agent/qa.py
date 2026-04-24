@@ -107,20 +107,9 @@ def format_source(node) -> str:
     """Format a retrieved node with its source label, stripping markdown."""
     meta = node.metadata
     source = meta.get("source", "unknown")
-    # doc_type = meta.get("type", "")
-
     raw_text = node.text.strip()
     clean_text = strip_markdown(raw_text)
-
-    # if doc_type == "video":
-    #     ts = meta.get("timestamp_label", "?")
-    #     label = f"[VIDEO: {meta.get('filename', source)} @ {ts}]"
-    # elif doc_type == "html":
-    #     label = f"[WEB: {meta.get('title', source)}]"
-    # else:
-    #     label = f"[FILE: {meta.get('filename', source)}]"
-    label = f"[FILE: {meta.get('filename', source)}]"
-
+    label = f"[FILE: {meta.get('filename', source)}]" if meta.get("filename") else f"[SOURCE: {source}]"
     return f"{label}\n{clean_text}"
 
 
@@ -140,7 +129,7 @@ def ask(question: str, index: VectorStoreIndex, memory=None) -> dict:
     Ask a question against the index.
 
     Retrieval pipeline:
-      1. Build retriever (vector + BM25 + fusion)
+      1. Build retriever (vector + MMR)
       2. Retrieve relevant nodes
       3. Build prompt (with memory context)
       4. LLM answer generation
@@ -172,30 +161,6 @@ def ask(question: str, index: VectorStoreIndex, memory=None) -> dict:
         if getattr(config, "DEBUG_LLM", False):
             print(f"[qa] Retrieved {len(nodes)} chunks")
 
-    # # Keyword-based relevance check: if question contains specific terms (like
-    # # product names, brand names, specific features), verify they appear together
-    # # in at least one retrieved chunk
-    # question_lower = question.lower()
-    # question_words = set(re.findall(r'\b[a-z]{4,}\b', question_lower))
-    # stop_words = {'what', 'does', 'have', 'from', 'with', 'that', 'this', 'when', 'where', 
-    #               'how', 'can', 'the', 'and', 'for', 'are', 'you', 'your', 'not', 'about', 
-    #               'nova', 'desk', 'desk', 'plan', 'plans', 'plan', 'using', 'about'}
-    # key_terms = question_words - stop_words
-    
-    # # Check if question has a specific brand/product name or import-related terms
-    # specific_terms = {'zendesk', 'hipaa', 'soc', 'slack', 'api', 'import', 'export',
-    #                   'gdpr', 'sso', 'saml', 'oauth', 'webhook', 'zapier'}
-    # question_specific = key_terms & specific_terms
-    
-    # if question_specific:
-    #     chunk_texts = [n.text.lower() for n in nodes]
-    #     # Check if ALL specific terms appear in at least one chunk
-    #     all_found = all(any(term in chunk for chunk in chunk_texts) for term in question_specific)
-    #     if not all_found:
-    #         return {
-    #             "answer": "I couldn't find that in the provided documents.",
-    #             "sources": []
-    #         }
     if not nodes:
         print("[qa] No relevant chunks found.") if getattr(config, "DEBUG_LLM", False) else None
 
@@ -226,21 +191,14 @@ def ask(question: str, index: VectorStoreIndex, memory=None) -> dict:
         sources = []
         for node in nodes:
             meta = node.metadata
-            doc_type = meta.get("type", "")
-            if doc_type == "video":
-                ts = meta.get("timestamp_label", "?")
-                sources.append(f"{meta.get('filename', 'video')} at {ts}")
-            elif doc_type == "html":
-                sources.append(meta.get("title") or meta.get("source", "web"))
+            file_path = meta.get("file_path", "")
+            filename = meta.get("filename") or meta.get("source", "file")
+            if file_path:
+                from pathlib import Path
+                proper_uri = Path(file_path).as_uri()
+                sources.append(f"[link={proper_uri}]{filename}[/link] ({file_path})")
             else:
-                file_path = meta.get("file_path", "")
-                filename = meta.get("filename") or meta.get("source", "file")
-                if file_path:
-                    from pathlib import Path
-                    proper_uri = Path(file_path).as_uri()
-                    sources.append(f"[link={proper_uri}]{filename}[/link] ({file_path})")
-                else:
-                    sources.append(filename)
+                sources.append(filename)
 
     if timing_enabled and getattr(config, "DEBUG_TIMING", False):
         total_elapsed = (time.perf_counter() - total_start) * 1000
