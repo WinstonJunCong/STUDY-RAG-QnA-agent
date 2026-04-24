@@ -45,21 +45,21 @@ def main():
         all_docs.extend(docs)
         print(f"   {len(docs)} docs from {folder}")
 
-    print("\n>> Loading HTML pages...")
-    if HTML_URLS:
-        docs = load_html_urls(HTML_URLS)
-        all_docs.extend(docs)
-        print(f"   {len(docs)} pages loaded")
-    else:
-        print("   (no URLs configured)")
+    # print("\n>> Loading HTML pages...")
+    # if HTML_URLS:
+    #     docs = load_html_urls(HTML_URLS)
+    #     all_docs.extend(docs)
+    #     print(f"   {len(docs)} pages loaded")
+    # else:
+    #     print("   (no URLs configured)")
 
-    print("\n>> Transcribing videos...")
-    if VIDEO_FILES:
-        docs = load_videos(VIDEO_FILES, model_size=WHISPER_MODEL)
-        all_docs.extend(docs)
-        print(f"   {len(docs)} segments transcribed")
-    else:
-        print("   (no video files configured)")
+    # print("\n>> Transcribing videos...")
+    # if VIDEO_FILES:
+    #     docs = load_videos(VIDEO_FILES, model_size=WHISPER_MODEL)
+    #     all_docs.extend(docs)
+    #     print(f"   {len(docs)} segments transcribed")
+    # else:
+    #     print("   (no video files configured)")
 
     if not all_docs:
         print("\nWARNING: No documents loaded! Check your TEXT_FOLDERS / HTML_URLS / VIDEO_FILES above.")

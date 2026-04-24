@@ -27,5 +27,5 @@ CHUNK_SOFT_LIMIT = 1000    # preferred split point
 CHUNK_MIN_CHARS = 350      # merge sections smaller than this
 
 # ---------------- Debugging ----------------
-DEBUG_LLM = True
-DEBUG_TIMING = True
+DEBUG_LLM = False
+DEBUG_TIMING = False

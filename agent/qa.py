@@ -107,18 +107,19 @@ def format_source(node) -> str:
     """Format a retrieved node with its source label, stripping markdown."""
     meta = node.metadata
     source = meta.get("source", "unknown")
-    doc_type = meta.get("type", "")
+    # doc_type = meta.get("type", "")
 
     raw_text = node.text.strip()
     clean_text = strip_markdown(raw_text)
 
-    if doc_type == "video":
-        ts = meta.get("timestamp_label", "?")
-        label = f"[VIDEO: {meta.get('filename', source)} @ {ts}]"
-    elif doc_type == "html":
-        label = f"[WEB: {meta.get('title', source)}]"
-    else:
-        label = f"[FILE: {meta.get('filename', source)}]"
+    # if doc_type == "video":
+    #     ts = meta.get("timestamp_label", "?")
+    #     label = f"[VIDEO: {meta.get('filename', source)} @ {ts}]"
+    # elif doc_type == "html":
+    #     label = f"[WEB: {meta.get('title', source)}]"
+    # else:
+    #     label = f"[FILE: {meta.get('filename', source)}]"
+    label = f"[FILE: {meta.get('filename', source)}]"
 
     return f"{label}\n{clean_text}"
 
@@ -161,14 +162,15 @@ def ask(question: str, index: VectorStoreIndex, memory=None) -> dict:
     if memory:
         with Timer("0. Memory retrieval", timing_enabled):
             memory_context = memory.get_context(question)
-            if memory_context:
+            if memory_context and getattr(config, "DEBUG_LLM", False):
                 print(f"[qa] Retrieved {len(memory_context)} chars from memory")
 
     retriever = build_retriever(index)
 
     with Timer("1. Retrieval", timing_enabled):
         nodes = retriever.retrieve(question)
-        print(f"[qa] Retrieved {len(nodes)} chunks")
+        if getattr(config, "DEBUG_LLM", False):
+            print(f"[qa] Retrieved {len(nodes)} chunks")
 
     # # Keyword-based relevance check: if question contains specific terms (like
     # # product names, brand names, specific features), verify they appear together
@@ -195,7 +197,7 @@ def ask(question: str, index: VectorStoreIndex, memory=None) -> dict:
     #             "sources": []
     #         }
     if not nodes:
-        print("[qa] No relevant chunks found.") 
+        print("[qa] No relevant chunks found.") if getattr(config, "DEBUG_LLM", False) else None
 
     with Timer("2. Build prompt", timing_enabled):
         context_parts = [format_source(n) for n in nodes]
@@ -240,7 +242,7 @@ def ask(question: str, index: VectorStoreIndex, memory=None) -> dict:
                 else:
                     sources.append(filename)
 
-    if timing_enabled:
+    if timing_enabled and getattr(config, "DEBUG_TIMING", False):
         total_elapsed = (time.perf_counter() - total_start) * 1000
         print(f"[TIMING] Total pipeline: {total_elapsed:.0f}ms\n")
 
