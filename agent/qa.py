@@ -170,36 +170,32 @@ def ask(question: str, index: VectorStoreIndex, memory=None) -> dict:
         nodes = retriever.retrieve(question)
         print(f"[qa] Retrieved {len(nodes)} chunks")
 
-    # Keyword-based relevance check: if question contains specific terms (like
-    # product names, brand names, specific features), verify they appear together
-    # in at least one retrieved chunk
-    question_lower = question.lower()
-    question_words = set(re.findall(r'\b[a-z]{4,}\b', question_lower))
-    stop_words = {'what', 'does', 'have', 'from', 'with', 'that', 'this', 'when', 'where', 
-                  'how', 'can', 'the', 'and', 'for', 'are', 'you', 'your', 'not', 'about', 
-                  'nova', 'desk', 'desk', 'plan', 'plans', 'plan', 'using', 'about'}
-    key_terms = question_words - stop_words
+    # # Keyword-based relevance check: if question contains specific terms (like
+    # # product names, brand names, specific features), verify they appear together
+    # # in at least one retrieved chunk
+    # question_lower = question.lower()
+    # question_words = set(re.findall(r'\b[a-z]{4,}\b', question_lower))
+    # stop_words = {'what', 'does', 'have', 'from', 'with', 'that', 'this', 'when', 'where', 
+    #               'how', 'can', 'the', 'and', 'for', 'are', 'you', 'your', 'not', 'about', 
+    #               'nova', 'desk', 'desk', 'plan', 'plans', 'plan', 'using', 'about'}
+    # key_terms = question_words - stop_words
     
-    # Check if question has a specific brand/product name or import-related terms
-    specific_terms = {'zendesk', 'hipaa', 'soc', 'slack', 'api', 'import', 'export',
-                      'gdpr', 'sso', 'saml', 'oauth', 'webhook', 'zapier'}
-    question_specific = key_terms & specific_terms
+    # # Check if question has a specific brand/product name or import-related terms
+    # specific_terms = {'zendesk', 'hipaa', 'soc', 'slack', 'api', 'import', 'export',
+    #                   'gdpr', 'sso', 'saml', 'oauth', 'webhook', 'zapier'}
+    # question_specific = key_terms & specific_terms
     
-    if question_specific:
-        chunk_texts = [n.text.lower() for n in nodes]
-        # Check if ALL specific terms appear in at least one chunk
-        all_found = all(any(term in chunk for chunk in chunk_texts) for term in question_specific)
-        if not all_found:
-            return {
-                "answer": "I couldn't find that in the provided documents.",
-                "sources": []
-            }
-
+    # if question_specific:
+    #     chunk_texts = [n.text.lower() for n in nodes]
+    #     # Check if ALL specific terms appear in at least one chunk
+    #     all_found = all(any(term in chunk for chunk in chunk_texts) for term in question_specific)
+    #     if not all_found:
+    #         return {
+    #             "answer": "I couldn't find that in the provided documents.",
+    #             "sources": []
+    #         }
     if not nodes:
-        return {
-            "answer": "No relevant documents found. Try ingesting some documents first.",
-            "sources": []
-        }
+        print("[qa] No relevant chunks found.") 
 
     with Timer("2. Build prompt", timing_enabled):
         context_parts = [format_source(n) for n in nodes]
