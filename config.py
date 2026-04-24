@@ -12,17 +12,14 @@ EMBED_MODEL = "gemini-embedding-001"
 TOP_K = 6              # chunks returned by retriever
 MMR_LAMBDA = 0.7      # 0=max diversity, 1=max relevance
 
-# ---------------- Hybrid Retrieval ----------------
-BM25_TOP_K = 8        # BM25 candidates (higher to capture more before fusion)
-USE_BM25 = True       # Enable BM25 alongside vector search
-
 # ---------------- Storage ----------------
 CHROMA_PATH = "./data/chroma_db"
 CHROMA_COLLECTION = "qna_docs"
 
-# ---------------- Memory (Vector-backed) ----------------
+# ---------------- Memory (Vector-backed + Hybrid) ----------------
 MEMORY_TOKEN_LIMIT = 2000      # tokens for recent messages in context
-MEMORY_TOP_K = 3               # vector search results for memory retrieval
+MEMORY_TOP_K = 3               # vector search results for semantic retrieval
+MEMORY_RECENT_COUNT = 5        # last N messages to always include (recent buffer)
 
 # ---------------- Unstructured.io chunking params ----------------
 CHUNK_MAX_CHARS = 2000      # hard ceiling per chunk

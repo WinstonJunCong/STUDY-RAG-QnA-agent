@@ -3,21 +3,15 @@
 # Includes source citations in every answer.
 # Memory: retains context across multiple user turns.
 #
-# Retrieval strategy (hybrid):
-#   1. Vector retriever with tuned MMR
-#   2. BM25 retriever for exact keyword matching
-#   3. Reciprocal Rank Fusion combines both
+# Retrieval strategy:
+#   Vector retriever with tuned MMR (Maximal Marginal Relevance)
 
 import re
 import time
-import json
 from typing import List
 
 from llama_index.core import VectorStoreIndex, Settings
 from llama_index.core.prompts import PromptTemplate
-from llama_index.core.schema import TextNode
-from llama_index.retrievers.bm25 import BM25Retriever
-from llama_index.core.retrievers import QueryFusionRetriever
 
 import config
 
@@ -131,46 +125,13 @@ def format_source(node) -> str:
 
 def build_retriever(index: VectorStoreIndex):
     """
-    Builds the retrieval pipeline (hybrid: vector + BM25 + fusion):
-    1. Vector retriever with tuned MMR
-    2. BM25 retriever for exact keyword matching
-    3. Reciprocal Rank Fusion combines both
+    Builds the retrieval pipeline using vector search with MMR.
     """
-    # Vector retriever with MMR
-    vector_retriever = index.as_retriever(
+    return index.as_retriever(
         vector_store_query_mode="mmr",
         similarity_top_k=config.TOP_K,
         vector_store_kwargs={"mmr_threshold": config.MMR_LAMBDA},
     )
-
-    if config.USE_BM25:
-        # Load nodes from JSON for BM25
-        bm25_path = "./data/bm25_nodes.json"
-        try:
-            with open(bm25_path, encoding="utf-8") as f:
-                nodes_data = json.load(f)
-            nodes = [TextNode(**d) for d in nodes_data]
-            print(f"[qa] Loaded {len(nodes)} nodes for BM25")
-        except Exception as e:
-            print(f"[qa] BM25 fallback: {e}")
-            return vector_retriever
-
-        bm25_retriever = BM25Retriever.from_defaults(
-            nodes=nodes,
-            similarity_top_k=config.BM25_TOP_K,
-        )
-
-        # Fusion: combine vector + BM25 with Reciprocal Rank Fusion
-        fusion_retriever = QueryFusionRetriever(
-            retrievers=[vector_retriever, bm25_retriever],
-            similarity_top_k=config.TOP_K,
-            num_queries=1,
-            mode="reciprocal_rerank",
-            use_async=False,
-        )
-        return fusion_retriever
-
-    return vector_retriever
 
 
 def ask(question: str, index: VectorStoreIndex, memory=None) -> dict:

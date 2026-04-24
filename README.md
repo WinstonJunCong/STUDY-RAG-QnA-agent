@@ -1,62 +1,48 @@
-# 📚 NovaDesk Q&A RAG System
+# Session Memory Q&A Agent
 
-A production-ready Retrieval-Augmented Generation (RAG) system for answering customer questions about NovaDesk using company documentation.
+A RAG-powered Q&A system with persistent session memory. Answers questions using a knowledge base while retaining context across conversation turns.
 
 ## Features
 
-- **Memory Retention**: Conversation history stored via vector memory, with summarize approach for older messages
+- **Session Memory**: Hybrid memory combining recent message buffer + semantic search
+- **RAG Retrieval**: Vector search with MMR (Maximal Marginal Relevance)
 - **Google GenAI**: Gemini 3.1 Flash Lite for LLM, Gemini Embedding 001 for embeddings
-- **Agentic AI**: Perception → Retrieval → Reasoning → Response with context retention
-
-## Performance
-
-| Metric | Score |
-|--------|-------|
-| UAT Pass Rate | 14/17 (82%) |
-| Average Score | **94.0%** |
-| Response Time | ~3-5 seconds |
 
 ## Tech Stack
 
-| Component | Technology | Why |
-|-----------|-----------|-----|
-| Framework | LlamaIndex | Best Python RAG library |
-| Vector DB | ChromaDB | Local, fast, easy |
-| Embeddings | Google GenAI (gemini-embedding-001) | Google API |
-| LLM | Google GenAI (gemini-3.1-flash-lite-preview) | Google API |
-| Memory | Vector-backed with summarize | Token-efficient retention |
-| Parsing | Unstructured.io | Semantic document understanding |
-| Retrieval | Hybrid (Vector + BM25 + RRF) | Captures semantic and exact matches |
-
-Requires Google API key. Runs with Google Cloud.
+| Component | Technology |
+|-----------|-----------|
+| Framework | LlamaIndex |
+| Vector DB | ChromaDB |
+| Embeddings | Google GenAI (gemini-embedding-001) |
+| LLM | Google GenAI (gemini-3.1-flash-lite-preview) |
+| Memory | Hybrid (in-memory buffer + ChromaDB semantic search) |
 
 ---
 
 ## Project Structure
 
 ```
-chat_agent/
 ├── agent/
-│   └── qa.py                 # Hybrid retrieval + LLM generation
+│   ├── qa.py                 # RAG retrieval + LLM generation
+│   └── memory.py             # Vector-backed conversation memory
 ├── data/
-│   ├── chroma_db/            # Vector index (auto-created)
-│   └── bm25_nodes.json       # BM25 corpus (auto-created)
+│   └── chroma_db/            # Vector index (auto-created)
 ├── docs/
-│   ├── PRESENTATION_NOTES.md  # Technical deep dive
+│   ├── PRESENTATION_NOTES.md # Technical deep dive
 │   └── ITERATION_HISTORY.md  # Version history
 ├── ingest/
-│   ├── text_loader.py         # .txt / .md files
-│   ├── html_loader.py         # Web scraping
-│   └── video_loader.py        # Whisper transcription
+│   ├── text_loader.py       # .txt / .md files
+│   ├── html_loader.py       # Web scraping
+│   └── video_loader.py     # Whisper transcription
 ├── pipeline/
-│   └── index_builder.py       # Unstructured.io + ChromaDB indexing
+│   └── index_builder.py    # ChromaDB indexing
 ├── scoring/
-│   └── score_responses.py      # LLM-judged evaluation
-├── sample_files/               # 13 source markdown documents
-├── config.py                  # All configuration settings
-├── ingestion.py               # Document ingestion entry point
-├── query.py                  # Interactive Q&A CLI
-├── run_uat.py                # Automated UAT testing
+│   └── score_responses.py  # LLM-judged evaluation
+├── sample_files/           # Source documents (4 files)
+├── config.py              # Configuration settings
+├── ingestion.py           # Document ingestion
+├── query.py              # Interactive Q&A CLI
 └── requirements.txt
 ```
 
@@ -66,7 +52,7 @@ chat_agent/
 
 ### Prerequisites
 
-1. **Google API Key** - Set as environment variable
+1. **Google API Key**
    ```bash
    export GOOGLE_API_KEY="your-api-key-here"
    ```
@@ -76,17 +62,11 @@ chat_agent/
    pip install -r requirements.txt
    ```
 
-### Ingest Documents (One-time)
+### Ingest Documents
 
 ```bash
 python ingestion.py
 ```
-
-This will:
-1. Load documents from `sample_files/`
-2. Parse with Unstructured.io (semantic chunking)
-3. Build hybrid index (ChromaDB + BM25)
-4. Save to `./data/`
 
 ### Ask Questions
 
@@ -94,10 +74,43 @@ This will:
 python query.py
 ```
 
-### Run UAT Tests
+---
 
-```bash
-python run_uat.py
+## Architecture
+
+### Query Pipeline
+
+```
+User Question → [Memory Retrieval] → [RAG Retrieval] → LLM → Answer
+```
+
+1. **Memory Retrieval**: Recent buffer (last 5) + semantic search on conversation history
+2. **RAG Retrieval**: Vector search with MMR against knowledge base
+3. **LLM Generation**: Combines memory context + document context to generate answer
+
+### Vector Retrieval with MMR
+
+Uses Maximal Marginal Relevance for result diversity:
+
+- **Vector search**: Captures semantic similarity ("cheapest" → "lowest price")
+- **MMR**: Balances relevance with diversity, avoiding redundant results
+
+### Session Memory
+
+Hybrid memory combining two retrieval strategies:
+
+**1. Recent Buffer** (guaranteed recency)
+- Last 5 messages stored in-memory
+- Always included in context, regardless of query
+- Ensures the LLM never loses immediate conversation thread
+
+**2. Semantic Search** (relevant context)
+- All messages stored in ChromaDB
+- Vector similarity retrieves past context relevant to current query
+- Skipped if already covered by recent buffer (deduplication)
+
+```
+Memory Context = Recent Buffer (last 5) + Semantic Search (if not covered)
 ```
 
 ---
@@ -106,83 +119,26 @@ python run_uat.py
 
 All settings in `config.py`:
 
-### Retrieval Parameters
-
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `TOP_K` | 6 | Final chunks after fusion |
+| `TOP_K` | 6 | Chunks returned by retriever |
 | `MMR_LAMBDA` | 0.7 | 0=max diversity, 1=max relevance |
-| `BM25_TOP_K` | 8 | BM25 candidates before fusion |
-| `USE_BM25` | True | Enable hybrid retrieval |
-
-### Chunking Parameters
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `CHUNK_MAX_CHARS` | 2000 | Hard ceiling per chunk |
-| `CHUNK_SOFT_LIMIT` | 1000 | Preferred split point |
-| `CHUNK_MIN_CHARS` | 350 | Merge smaller fragments |
-
-### Models
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `EMBED_MODEL` | BAAI/bge-base-en-v1.5 | Embedding model |
-| `OLLAMA_MODEL` | mistral | LLM model |
+| `MEMORY_TOP_K` | 3 | Semantic search results for memory retrieval |
+| `MEMORY_RECENT_COUNT` | 5 | Recent messages to always include in context |
 
 ---
 
-## Architecture Highlights
+## Document Sources
 
-### Hybrid Retrieval
+Add documents to `sample_files/` directory (`.txt` and `.md` supported).
 
-Combines vector search with BM25 using Reciprocal Rank Fusion:
+Edit `ingestion.py` to configure additional sources:
 
+```python
+TEXT_FOLDERS = ["./sample_files"]
+HTML_URLS = ["https://example.com/docs"]
+VIDEO_FILES = ["./videos/lecture.mp4"]
 ```
-Query → [Vector Search + MMR] → [BM25 Search] → RRF Fusion → Top-K Chunks
-```
-
-- **Vector search**: Captures semantic similarity ("cheapest" → "lowest price")
-- **BM25**: Captures exact keywords ("Zendesk", "HIPAA")
-- **RRF**: Combines both rankings
-
-### Semantic Chunking
-
-Uses Unstructured.io for intelligent document parsing:
-
-- Preserves table structure
-- Keeps Q&A pairs together
-- Respects heading hierarchy
-
-### Prompt Engineering
-
-Comprehensive rules for consistent, accurate answers:
-
-- **RELEVANCE GATE**: Prevents hallucination on missing topics
-- **PRICING QUESTIONS**: Extracts all pricing details
-- **CONFLICT CITATION**: States actual values from conflicting sources
-- **YES/NO FRAMING**: Clear direct answers
-
----
-
-## Testing
-
-### UAT Test Suite
-
-17 questions covering:
-- Pricing (plans, discounts)
-- Setup (account, channels)
-- Features (AI Bot, Knowledge Base)
-- Compliance (SOC 2, HIPAA)
-- Integrations (Slack, API)
-
-### Scoring
-
-LLM-judged evaluation with rubric:
-- **100 (Pass)**: Exact match
-- **75-99 (Good)**: Minor gaps
-- **50-74 (Partial)**: Missing parts
-- **0-49 (Fail)**: Wrong or missing
 
 ---
 
@@ -190,56 +146,23 @@ LLM-judged evaluation with rubric:
 
 | Document | Purpose |
 |----------|---------|
-| `docs/PRESENTATION_NOTES.md` | Technical deep dive with diagrams and code |
-| `docs/ITERATION_HISTORY.md` | Version-by-version development history |
+| `docs/PRESENTATION_NOTES.md` | Technical deep dive with diagrams |
+| `docs/ITERATION_HISTORY.md` | Version history |
 | `docs/SPEC.md` | Technical specification |
-
----
-
-## Cost Breakdown
-
-| Component | Cost |
-|-----------|------|
-| Embeddings (HuggingFace) | ✅ Free |
-| LLM (Gemini) | Depends on usage | Google Cloud |
-| Vector DB (ChromaDB) | ✅ Free |
-| Document parsing (Unstructured.io) | ✅ Free |
-| **Total** | **$0** |
 
 ---
 
 ## Troubleshooting
 
 **"GOOGLE_API_KEY not set"**
-→ Set the GOOGLE_API_KEY environment variable:
 ```bash
 export GOOGLE_API_KEY="your-api-key"
 ```
 
-**API quota exceeded**
-→ Check your Google Cloud billing and quotas in Google Cloud Console
-
-**Slow embedding on first run**
-→ Normal — API calls will be faster after warm-up
+**"Module not found" errors**
+```bash
+pip install -r requirements.txt
+```
 
 **Poor answer quality**
-→ Check `config.py` for tuning options, or review `docs/PRESENTATION_NOTES.md`
-
-**"Module not found" errors**
-→ Run `pip install -r requirements.txt`
-
----
-
-## Version History
-
-See `docs/ITERATION_HISTORY.md` for detailed version-by-version breakdown.
-
-| Version | Key Change | Score |
-|---------|------------|-------|
-| R10 | Unstructured.io migration | 95.5% |
-| R12b | Conflict citation rules | 94.1% |
-| R13/14 | RELEVANCE GATE | 94.0% |
-
----
-
-*Last Updated: March 2026*
+Check `config.py` for tuning options, or review `docs/PRESENTATION_NOTES.md`
