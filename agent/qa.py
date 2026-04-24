@@ -211,7 +211,11 @@ def ask(question: str, index: VectorStoreIndex, memory=None) -> dict:
         else:
             full_context = context_str
         
-        prompt = QA_PROMPT.format(context_str=full_context, query_str=question)
+        prompt = QA_PROMPT.format(
+            context_str=context_str,
+            query_str=question,
+            memory_context=memory_context if memory_context else "No memory yet."
+        )
 
     if getattr(config, "DEBUG_LLM", False):
         from rich.console import Console
