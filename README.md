@@ -25,24 +25,17 @@ A RAG-powered Q&A system with persistent session memory. Answers questions using
 ```
 ├── agent/
 │   ├── qa.py                 # RAG retrieval + LLM generation
-│   └── memory.py             # Vector-backed conversation memory
+│   └── memory.py             # Hybrid conversation memory
 ├── data/
 │   └── chroma_db/            # Vector index (auto-created)
-├── docs/
-│   ├── PRESENTATION_NOTES.md # Technical deep dive
-│   └── ITERATION_HISTORY.md  # Version history
 ├── ingest/
-│   ├── text_loader.py       # .txt / .md files
-│   ├── html_loader.py       # Web scraping
-│   └── video_loader.py     # Whisper transcription
+│   └── text_loader.py        # .txt / .md files
 ├── pipeline/
-│   └── index_builder.py    # ChromaDB indexing
-├── scoring/
-│   └── score_responses.py  # LLM-judged evaluation
-├── sample_files/           # Source documents (4 files)
-├── config.py              # Configuration settings
-├── ingestion.py           # Document ingestion
-├── query.py              # Interactive Q&A CLI
+│   └── index_builder.py     # ChromaDB indexing
+├── sample_files/            # Source documents
+├── config.py               # Configuration settings
+├── ingestion.py            # Document ingestion
+├── query.py               # Interactive Q&A CLI
 └── requirements.txt
 ```
 
@@ -136,19 +129,7 @@ Edit `ingestion.py` to configure additional sources:
 
 ```python
 TEXT_FOLDERS = ["./sample_files"]
-HTML_URLS = ["https://example.com/docs"]
-VIDEO_FILES = ["./videos/lecture.mp4"]
 ```
-
----
-
-## Documentation
-
-| Document | Purpose |
-|----------|---------|
-| `docs/PRESENTATION_NOTES.md` | Technical deep dive with diagrams |
-| `docs/ITERATION_HISTORY.md` | Version history |
-| `docs/SPEC.md` | Technical specification |
 
 ---
 
@@ -165,4 +146,4 @@ pip install -r requirements.txt
 ```
 
 **Poor answer quality**
-Check `config.py` for tuning options, or review `docs/PRESENTATION_NOTES.md`
+Check `config.py` for tuning options.
