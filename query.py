@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# query.py — Interactive Q&A loop. Run after ingest.py.
+# query.py — Interactive Q&A loop with memory retention. Run after ingest.py.
 
 import sys
 import io
@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from pipeline.index_builder import load_index, configure_settings
 from agent.qa import ask
+from agent.memory import get_memory
 
 console = Console()
 
@@ -23,7 +24,7 @@ console = Console()
 def main():
     console.print(Panel.fit(
         "[bold cyan]📚 Document Q&A Agent[/bold cyan]\n"
-        "[dim]Free stack: HuggingFace embeddings + Ollama LLM + ChromaDB[/dim]",
+        "[dim]Google GenAI + ChromaDB + Memory[/dim]",
         border_style="cyan"
     ))
 
@@ -36,6 +37,16 @@ def main():
         console.print(f"[red]✗ Failed to load index: {e}[/red]")
         console.print("[yellow]Tip: Run `python ingestion.py` first to build the index.[/yellow]")
         return
+
+    # Initialize memory
+    console.print("[dim]Initializing conversation memory...[/dim]")
+    try:
+        memory = get_memory()
+        memory.initialize()
+        console.print("[green]✓ Memory initialized[/green]\n")
+    except Exception as e:
+        console.print(f"[yellow]⚠ Memory init warning: {e}[/yellow]")
+        memory = None
 
     console.print("\n[dim]Type your question and press Enter. Type 'quit' to exit.[/dim]\n")
 
@@ -53,7 +64,7 @@ def main():
         console.print("\n[dim]Retrieving relevant chunks...[/dim]")
 
         try:
-            result = ask(question, index)
+            result = ask(question, index, memory=memory)
         except Exception as e:
             console.print(f"[red]Error: {e}[/red]\n")
             continue

@@ -7,8 +7,8 @@ import json
 from llama_index.core import VectorStoreIndex, StorageContext, Settings, Document
 from llama_index.core.schema import TextNode
 from llama_index.vector_stores.chroma import ChromaVectorStore
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-from llama_index.llms.ollama import Ollama
+from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
+from llama_index.llms.google_genai import GoogleGenAI
 from unstructured.partition.md import partition_md
 from unstructured.partition.text import partition_text
 from unstructured.chunking.title import chunk_by_title
@@ -19,13 +19,18 @@ import config
 
 def configure_settings():
     """Set global LlamaIndex settings."""
-    Settings.embed_model = HuggingFaceEmbedding(model_name=config.EMBED_MODEL)
-    Settings.llm = Ollama(
-        model=config.OLLAMA_MODEL,
-        base_url=config.OLLAMA_BASE_URL,
-        request_timeout=120.0,
+    if not config.GOOGLE_API_KEY:
+        raise ValueError("GOOGLE_API_KEY environment variable not set")
+    
+    Settings.embed_model = GoogleGenAIEmbedding(
+        model_name=config.EMBED_MODEL,
+        api_key=config.GOOGLE_API_KEY,
     )
-    print(f"[settings] Embed: {config.EMBED_MODEL} | LLM: {config.OLLAMA_MODEL}")
+    Settings.llm = GoogleGenAI(
+        model=config.GEMINI_MODEL,
+        api_key=config.GOOGLE_API_KEY,
+    )
+    print(f"[settings] Embed: {config.EMBED_MODEL} | LLM: {config.GEMINI_MODEL}")
 
 
 def get_vector_store():

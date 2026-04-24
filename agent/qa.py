@@ -1,6 +1,7 @@
 # agent/qa.py
-# Retrieves relevant chunks and answers questions using the local Ollama LLM.
+# Retrieves relevant chunks and answers questions using Google GenAI LLM.
 # Includes source citations in every answer.
+# Memory: retains context across multiple user turns.
 #
 # Retrieval strategy (hybrid):
 #   1. Vector retriever with tuned MMR
@@ -41,82 +42,53 @@ class Timer:
 
 
 QA_PROMPT = PromptTemplate(
-    "You are a helpful customer support assistant. "
-    "Answer the question using only the information from the sources below. "
-    "Keep your answer natural and conversational.\n\n"
+    "You are a helpful personal assistant. "
+    "You have access to personal memory about the user and a knowledge base. "
+    "Use these sources to answer questions, but also use your own reasoning "
+    "when neither source is relevant.\n\n"
 
-    "## ANSWER RULES\n\n"
-    "RELEVANCE FILTER: Before combining sources, identify exactly what the "
-    "question asks for. Only use chunks that directly answer that specific "
-    "question. Discard chunks that answer different questions.\n\n"
-    "COMPLETENESS: If answering requires information from multiple sources, "
-    "combine them into one complete answer without repetition.\n\n"
+    "## SOURCES\n\n"
 
-    "SCOPE: Answer exactly what was asked. Do not add unrequested information.\n"
-    "  - 'What is NovaDesk?' → describe the core product only, not pricing or integrations.\n"
-    "  - 'How do I set up NovaDesk?' → include ALL setup steps, do not truncate.\n"
-    "  - 'What discount do non-profits get?' → include ALL groups mentioned "
-    "(e.g. non-profits AND educational institutions), not just one.\n\n"
+    "MEMORY (personal information the user has shared with you):\n"
+    "---------------------\n"
+    "{memory_context}\n"
+    "---------------------\n\n"
 
-    "PRICING QUESTIONS: For questions about plan costs, extract ALL pricing details "
-    "from the sources:\n"
-    "  - Monthly price per agent\n"
-    "  - Agent seat limits\n"
-    "  - Annual/discount pricing (e.g. 20% off annually)\n"
-    "  - Trial information\n"
-    "  Example correct: '$49 per agent per month, up to 15 agents, 20% off annually'\n"
-    "  Example WRONG:   '$49 per agent per month' (missing agent limit and discount)\n\n"
-
-    "FORMAT:\n"
-    "  - Write in plain paragraphs. Only use numbered lists when the question "
-    "explicitly asks to 'list', 'summarize all', or requests step-by-step instructions.\n"
-    "  - No markdown formatting (no **bold**, *italics*, or # headers).\n\n"
-
-    "NOT FOUND: If the answer is not in the sources, say "
-    "'I couldn't find that in the provided documents.' — one sentence, nothing else. "
-    "Do NOT suggest alternatives, workarounds, or related features.\n\n"
-    
-    "RELEVANCE GATE: If the retrieved sources do NOT contain information that "
-    "directly answers the question, respond with ONLY "
-    "'I couldn't find that in the provided documents.' — nothing else. "
-    "Do NOT add general information about NovaDesk, unrelated features, or "
-    "other topics mentioned in the sources.\n\n"
-
-    "YES/NO QUESTIONS: If the direct answer is No, your FIRST word must be 'No.'\n"
-    "  - Correct:   'No, the AI Bot is only available on Growth and Enterprise plans.'\n"
-    "  - Incorrect: 'The AI Bot is not available on the Starter plan, but...'\n"
-    "  - Incorrect: 'Yes, but only on Growth and Enterprise.'\n"
-    "  - SDK/feature exists but no standalone product: Lead with what does NOT exist, "
-    "then mention what does. Example: 'NovaDesk does not have a standalone mobile app. "
-    "However, native SDKs for iOS and Android are available for integrating live chat "
-    "into mobile apps.'\n\n"
-
-    "CONFLICT DETECTION: Only flag a conflict if the SAME specific fact has "
-    "different values in different sources.\n"
-    "  - REAL conflict:   Source A says first response = 30 min, "
-    "Source B says 1 hour for the same ticket priority → Flag it.\n"
-    "  - FALSE conflict:  Source A says Starter has 3 agents, "
-    "Source B says Growth has 15 → Different plans, not a conflict.\n\n"
-
-    "CONFLICT CITATION (CRITICAL): If multiple sources provide DIFFERENT values "
-    "for the SAME metric, you MUST include the ACTUAL VALUE from EACH source.\n"
-    "  - WRONG: 'According to [doc 12], the urgent SLA is 30 min. However, "
-    "[doc 11] shows the current default is 1 hour.'\n"
-    "  - CORRECT: 'According to [doc 11], the urgent SLA first response is 1 hour. "
-    "According to [doc 12], the urgent SLA first response is 30 minutes (legacy).'\n"
-    "  - Do NOT say 'verify settings' without stating the actual conflicting values.\n\n"
-
-    "CITATIONS: After each sentence or claim, add the source in parentheses: "
-    "(Source: filename)\n"
-    "  - If two sources say the same thing, cite both: "
-    "(Source: file_a.md, file_b.md)\n"
-    "  - If two sources genuinely conflict, present both values and state "
-    "which source says what.\n\n"
-
-    "Sources:\n"
+    "KNOWLEDGE BASE (documents you can reference):\n"
     "---------------------\n"
     "{context_str}\n"
     "---------------------\n\n"
+
+    "## RULES\n\n"
+
+    "SOURCE PRIORITY:\n"
+    "  1. MEMORY — for anything personal (name, preferences, situation, past context)\n"
+    "  2. KNOWLEDGE BASE — for factual questions covered in the documents\n"
+    "  3. YOUR OWN REASONING — for everything else (opinions, general knowledge, "
+    "explanations, topics not in the documents)\n\n"
+
+    "MEMORY PRIORITY: If the question contains words like 'my', 'I', or 'me', "
+    "check MEMORY first. Only fall back to the knowledge base if memory has "
+    "nothing relevant. Cite memory answers as (Source: memory).\n\n"
+
+    "NOT FOUND: If the question is about a specific topic covered in the knowledge "
+    "base but the answer is missing, say "
+    "'I couldn't find that in the knowledge base.' — nothing else.\n"
+    "For everything else, use your own reasoning and do not add a citation.\n\n"
+
+    "MULTI-PART QUESTIONS: If the user's message mixes personal context with a "
+    "factual question, address both. Greet or acknowledge the personal part using "
+    "memory, then answer the factual part from the knowledge base or reasoning.\n\n"
+
+    "CITATIONS: Add (Source: filename) after facts from the knowledge base. "
+    "Add (Source: memory) after facts from memory. "
+    "Do NOT add citations to greetings, opinions, general reasoning, or "
+    "filler sentences like 'Is there anything else I can help with?'.\n\n"
+
+    "FORMAT:\n"
+    "  - Write in plain conversational paragraphs.\n"
+    "  - Use numbered lists only when the question asks for steps or a list.\n"
+    "  - No markdown formatting (no **bold**, *italics*, or # headers).\n\n"
 
     "Question: {query_str}\n\n"
 
@@ -201,15 +173,16 @@ def build_retriever(index: VectorStoreIndex):
     return vector_retriever
 
 
-def ask(question: str, index: VectorStoreIndex) -> dict:
+def ask(question: str, index: VectorStoreIndex, memory=None) -> dict:
     """
     Ask a question against the index.
 
     Retrieval pipeline:
       1. Build retriever (vector + BM25 + fusion)
       2. Retrieve relevant nodes
-      3. Build prompt
+      3. Build prompt (with memory context)
       4. LLM answer generation
+      5. Save to memory
 
     Returns:
         {
@@ -221,6 +194,14 @@ def ask(question: str, index: VectorStoreIndex) -> dict:
     total_start = time.perf_counter()
 
     print(f"\n[qa] Question: {question[:60]}...") if timing_enabled else None
+
+    # Get memory context if available
+    memory_context = ""
+    if memory:
+        with Timer("0. Memory retrieval", timing_enabled):
+            memory_context = memory.get_context(question)
+            if memory_context:
+                print(f"[qa] Retrieved {len(memory_context)} chars from memory")
 
     retriever = build_retriever(index)
 
@@ -262,7 +243,14 @@ def ask(question: str, index: VectorStoreIndex) -> dict:
     with Timer("2. Build prompt", timing_enabled):
         context_parts = [format_source(n) for n in nodes]
         context_str = "\n\n---\n\n".join(context_parts)
-        prompt = QA_PROMPT.format(context_str=context_str, query_str=question)
+        
+        # Prepend memory context if available
+        if memory_context:
+            full_context = f"{memory_context}\n\n---\n\n{context_str}"
+        else:
+            full_context = context_str
+        
+        prompt = QA_PROMPT.format(context_str=full_context, query_str=question)
 
     if getattr(config, "DEBUG_LLM", False):
         from rich.console import Console
@@ -300,6 +288,12 @@ def ask(question: str, index: VectorStoreIndex) -> dict:
     if timing_enabled:
         total_elapsed = (time.perf_counter() - total_start) * 1000
         print(f"[TIMING] Total pipeline: {total_elapsed:.0f}ms\n")
+
+    # Save conversation to memory if available
+    if memory:
+        answer_text = str(response).strip()
+        memory.add_message("user", question)
+        memory.add_message("assistant", answer_text)
 
     return {
         "answer": str(response).strip(),

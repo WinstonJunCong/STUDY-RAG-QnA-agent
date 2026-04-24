@@ -1,11 +1,12 @@
 # config.py — tweak these to change models / behaviour
+import os
+
+# ---------------- Google GenAI ----------------
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
 
 # ---------------- Embedding ----------------
-EMBED_MODEL = "BAAI/bge-base-en-v1.5"
-
-# ---------------- LLM (via Ollama) ----------------
-OLLAMA_MODEL = "mistral"
-OLLAMA_BASE_URL = "http://localhost:11434"
+EMBED_MODEL = "gemini-embedding-001"
 
 # ---------------- Retrieval ----------------
 TOP_K = 6              # chunks returned by retriever
@@ -18,6 +19,10 @@ USE_BM25 = True       # Enable BM25 alongside vector search
 # ---------------- Storage ----------------
 CHROMA_PATH = "./data/chroma_db"
 CHROMA_COLLECTION = "qna_docs"
+
+# ---------------- Memory (Vector-backed) ----------------
+MEMORY_TOKEN_LIMIT = 2000      # tokens for recent messages in context
+MEMORY_TOP_K = 3               # vector search results for memory retrieval
 
 # ---------------- Unstructured.io chunking params ----------------
 CHUNK_MAX_CHARS = 2000      # hard ceiling per chunk

@@ -2,7 +2,7 @@
 """
 LLM-Judged Scoring for RAG Responses
 
-Scores all RAG response versions using Ollama LLM against ground truth.
+Scores all RAG response versions using Google GenAI LLM against ground truth.
 Adds scores to UAT.xlsx and creates a Summary sheet.
 """
 
@@ -20,8 +20,8 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from llama_index.core import Settings
-from llama_index.llms.ollama import Ollama
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.llms.google_genai import GoogleGenAI
+from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 import config
 
 
@@ -57,14 +57,19 @@ Score 0-49: Fail - incorrect or missing key information
 
 
 def configure_llm():
-    """Configure Ollama LLM for scoring."""
-    Settings.embed_model = HuggingFaceEmbedding(model_name=config.EMBED_MODEL)
-    Settings.llm = Ollama(
-        model=config.OLLAMA_MODEL,
-        base_url=config.OLLAMA_BASE_URL,
-        request_timeout=120.0,
+    """Configure Google GenAI LLM for scoring."""
+    if not config.GOOGLE_API_KEY:
+        raise ValueError("GOOGLE_API_KEY not set")
+    
+    Settings.embed_model = GoogleGenAIEmbedding(
+        model_name=config.EMBED_MODEL,
+        api_key=config.GOOGLE_API_KEY,
     )
-    print(f"[scoring] LLM: {config.OLLAMA_MODEL}")
+    Settings.llm = GoogleGenAI(
+        model=config.GEMINI_MODEL,
+        api_key=config.GOOGLE_API_KEY,
+    )
+    print(f"[scoring] LLM: {config.GEMINI_MODEL}")
 
 
 def get_response_columns(df):

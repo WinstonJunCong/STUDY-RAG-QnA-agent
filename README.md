@@ -2,6 +2,12 @@
 
 A production-ready Retrieval-Augmented Generation (RAG) system for answering customer questions about NovaDesk using company documentation.
 
+## Features
+
+- **Memory Retention**: Conversation history stored via vector memory, with summarize approach for older messages
+- **Google GenAI**: Gemini 3.1 Flash Lite for LLM, Gemini Embedding 001 for embeddings
+- **Agentic AI**: Perception → Retrieval → Reasoning → Response with context retention
+
 ## Performance
 
 | Metric | Score |
@@ -16,12 +22,13 @@ A production-ready Retrieval-Augmented Generation (RAG) system for answering cus
 |-----------|-----------|-----|
 | Framework | LlamaIndex | Best Python RAG library |
 | Vector DB | ChromaDB | Local, fast, easy |
-| Embeddings | BAAI/bge-base-en-v1.5 | Open-source, good quality |
-| LLM | Ollama + Mistral | Fully local, private |
+| Embeddings | Google GenAI (gemini-embedding-001) | Google API |
+| LLM | Google GenAI (gemini-3.1-flash-lite-preview) | Google API |
+| Memory | Vector-backed with summarize | Token-efficient retention |
 | Parsing | Unstructured.io | Semantic document understanding |
 | Retrieval | Hybrid (Vector + BM25 + RRF) | Captures semantic and exact matches |
 
-No API keys required. Runs entirely on local hardware.
+Requires Google API key. Runs with Google Cloud.
 
 ---
 
@@ -59,10 +66,9 @@ chat_agent/
 
 ### Prerequisites
 
-1. **Ollama** installed and running
+1. **Google API Key** - Set as environment variable
    ```bash
-   ollama pull mistral
-   ollama serve
+   export GOOGLE_API_KEY="your-api-key-here"
    ```
 
 2. **Python dependencies**
@@ -195,7 +201,7 @@ LLM-judged evaluation with rubric:
 | Component | Cost |
 |-----------|------|
 | Embeddings (HuggingFace) | ✅ Free |
-| LLM (Ollama) | ✅ Free |
+| LLM (Gemini) | Depends on usage | Google Cloud |
 | Vector DB (ChromaDB) | ✅ Free |
 | Document parsing (Unstructured.io) | ✅ Free |
 | **Total** | **$0** |
@@ -204,11 +210,17 @@ LLM-judged evaluation with rubric:
 
 ## Troubleshooting
 
-**"Connection refused" from Ollama**
-→ Make sure Ollama is running: `ollama serve`
+**"GOOGLE_API_KEY not set"**
+→ Set the GOOGLE_API_KEY environment variable:
+```bash
+export GOOGLE_API_KEY="your-api-key"
+```
+
+**API quota exceeded**
+→ Check your Google Cloud billing and quotas in Google Cloud Console
 
 **Slow embedding on first run**
-→ Normal — HuggingFace downloads the model once, then it's cached.
+→ Normal — API calls will be faster after warm-up
 
 **Poor answer quality**
 → Check `config.py` for tuning options, or review `docs/PRESENTATION_NOTES.md`
