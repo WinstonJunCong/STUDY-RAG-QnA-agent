@@ -96,6 +96,9 @@ data/chroma_db/
 data/bm25_nodes.json
 data/docstore.json
 
+# Diagnostic script (local only)
+diagnose.py
+
 # IDE / Editor
 .idea/
 .vscode/
