@@ -23,19 +23,16 @@ A RAG-powered Q&A system with persistent session memory. Answers questions using
 ## Project Structure
 
 ```
-├── agent/
-│   ├── qa.py                 # RAG retrieval + LLM generation
-│   └── memory.py             # Hybrid conversation memory
+├── src/
+│   ├── agent/              # qa.py, memory.py
+│   ├── ingest/            # text_loader.py
+│   └── pipeline/         # index_builder.py
 ├── data/
-│   └── chroma_db/            # Vector index (auto-created)
-├── ingest/
-│   └── text_loader.py        # .txt / .md files
-├── pipeline/
-│   └── index_builder.py     # ChromaDB indexing
-├── sample_files/            # Source documents
-├── config.py               # Configuration settings
-├── ingestion.py            # Document ingestion
-├── query.py               # Interactive Q&A CLI
+│   ├── input/            # Source documents
+│   └── chroma_db/        # Vector index (auto-created)
+├── config.py
+├── ingestion.py
+├── query.py
 └── requirements.txt
 ```
 
@@ -50,7 +47,7 @@ A RAG-powered Q&A system with persistent session memory. Answers questions using
    export GOOGLE_API_KEY="your-api-key-here"
    ```
 
-2. **Python dependencies**
+2. **Python dependencies (recommend a venv)**
    ```bash
    pip install -r requirements.txt
    ```
@@ -116,20 +113,14 @@ All settings in `config.py`:
 |-----------|---------|-------------|
 | `TOP_K` | 6 | Chunks returned by retriever |
 | `MMR_LAMBDA` | 0.7 | 0=max diversity, 1=max relevance |
-| `MEMORY_TOP_K` | 3 | Semantic search results for memory retrieval |
+| `MEMORY_TOP_K` | 4 | Semantic search results for memory retrieval |
 | `MEMORY_RECENT_COUNT` | 5 | Recent messages to always include in context |
 
 ---
 
 ## Document Sources
 
-Add documents to `sample_files/` directory (`.txt` and `.md` supported).
-
-Edit `ingestion.py` to configure additional sources:
-
-```python
-TEXT_FOLDERS = ["./sample_files"]
-```
+Add documents to `data/input/` directory (`.txt` and `.md` supported).
 
 ---
 

@@ -183,7 +183,7 @@ def ask(question: str, index: VectorStoreIndex, memory=None) -> dict:
     with Timer("3. LLM generation", timing_enabled):
         from llama_index.core import Settings
         response = Settings.llm.complete(prompt)
-
+        
     if getattr(config, "DEBUG_LLM", False):
         dbg_console.print(Panel(str(response), title="[bold magenta]DEBUG: Raw LLM Response[/bold magenta]", border_style="magenta"))
 

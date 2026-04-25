@@ -18,7 +18,7 @@ CHROMA_COLLECTION = "qna_docs"
 
 # ---------------- Memory (Vector-backed + Hybrid) ----------------
 MEMORY_TOKEN_LIMIT = 2000      # tokens for recent messages in context
-MEMORY_TOP_K = 3               # vector search results for semantic retrieval
+MEMORY_TOP_K = 4               # vector search results for semantic retrieval
 MEMORY_RECENT_COUNT = 5        # last N messages to always include (recent buffer)
 
 # ---------------- Unstructured.io chunking params ----------------

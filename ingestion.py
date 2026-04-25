@@ -8,17 +8,15 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from ingest.text_loader import load_text_files
-from ingest.html_loader import load_html_urls
-from ingest.video_loader import load_videos
-from pipeline.index_builder import build_index
+from src.ingest.text_loader import load_text_files
+from src.pipeline.index_builder import build_index
 
 # ============================================================
 #  👇 EDIT THIS SECTION — point to your actual sources
 # ============================================================
 
 TEXT_FOLDERS = [
-    "./sample_files",           # all .txt and .md files in this folder
+    "./data/input",           # all .txt and .md files in this folder
 ]
 
 HTML_URLS = [
