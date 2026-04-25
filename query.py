@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # query.py — Interactive Q&A loop with memory retention. Run after ingest.py.
 
+from logging import config
 import sys
 import io
 from pathlib import Path
@@ -14,9 +15,30 @@ from rich.text import Text
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from pipeline.index_builder import load_index, configure_settings
-from agent.qa import ask
-from agent.memory import get_memory
+import time
+from google.genai.errors import ServerError
+
+from src.pipeline.index_builder import load_index, configure_settings
+from src.agent.qa import ask
+from src.agent.memory import get_memory
+
+
+def call_with_retry(question, index, memory, max_retries=3):
+    """Call ask() with exponential backoff retry on ServerError."""
+    delays = [1, 2, 4]
+    
+    for attempt in range(max_retries):
+        try:
+            return ask(question, index, memory=memory)
+        except ServerError as e:
+            if getattr(config, "DEBUG_LLM", False):
+                print(f"[query] ServerError on attempt {attempt + 1}: {e}")
+            if attempt < max_retries - 1:
+                delay = delays[attempt]
+                console.print(f"[yellow]Service unavailable. Retrying in {delay}s... ({attempt + 1}/{max_retries})[/yellow]")
+                time.sleep(delay)
+            else:
+                raise
 
 console = Console()
 
@@ -64,9 +86,25 @@ def main():
         console.print("\n[dim]Retrieving relevant chunks...[/dim]")
 
         try:
-            result = ask(question, index, memory=memory)
+            result = call_with_retry(question, index, memory=memory)
+        except ServerError:
+            console.print(Panel(
+                "[yellow]The service is temporarily unavailable due to high demand. "
+                "Please try again in a moment.[/yellow]",
+                title="[bold red]⚠ Service Unavailable[/bold red]",
+                border_style="red",
+                padding=(1, 2)
+            ))
+            console.print()
+            continue
         except Exception as e:
-            console.print(f"[red]Error: {e}[/red]\n")
+            console.print(Panel(
+                "[yellow]Something went wrong. Please try again.[/yellow]",
+                title="[bold red]⚠ Error[/bold red]",
+                border_style="red",
+                padding=(1, 2)
+            ))
+            console.print()
             continue
 
         # Print answer
