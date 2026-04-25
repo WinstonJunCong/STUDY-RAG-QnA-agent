@@ -12,9 +12,13 @@ EMBED_MODEL = "gemini-embedding-001"
 TOP_K = 6              # chunks returned by retriever
 MMR_LAMBDA = 0.7      # 0=max diversity, 1=max relevance
 
-# ---------------- Storage ----------------
-CHROMA_PATH = "./data/chroma_db"
-CHROMA_COLLECTION = "qna_docs"
+# ---------------- Knowledge Base Storage ----------------
+CHROMA_INDEX_PATH = "./data/chroma_db"
+CHROMA_INDEX_COLLECTION = "qna_docs"
+
+# ---------------- Memory Storage ----------------
+CHROMA_MEMORY_PATH = "./data/chroma_db"
+CHROMA_MEMORY_COLLECTION = "conversation_memory"
 
 # ---------------- Memory (Vector-backed + Hybrid) ----------------
 MEMORY_TOKEN_LIMIT = 2000      # tokens for recent messages in context

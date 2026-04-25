@@ -22,8 +22,8 @@ class ConversationMemory:
     """
 
     def __init__(self):
-        self.chroma_client = chromadb.PersistentClient(path=config.CHROMA_PATH)
-        self.collection = self.chroma_client.get_or_create_collection("conversation_memory")
+        self.chroma_client = chromadb.PersistentClient(path=config.CHROMA_MEMORY_PATH)
+        self.collection = self.chroma_client.get_or_create_collection(config.CHROMA_MEMORY_COLLECTION)
         self.vector_store = ChromaVectorStore(chroma_collection=self.collection)
         self._recent_cache: List[dict] = []  # in-memory recent messages
         self._message_order = 0  # insertion counter

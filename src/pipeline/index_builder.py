@@ -12,6 +12,7 @@ from unstructured.partition.md import partition_md
 from unstructured.partition.text import partition_text
 from unstructured.chunking.title import chunk_by_title
 from pathlib import Path
+import shutil
 
 import config
 
@@ -32,10 +33,10 @@ def configure_settings():
     print(f"[settings] Embed: {config.EMBED_MODEL} | LLM: {config.GEMINI_MODEL}")
 
 
-def get_vector_store():
-    """Returns a ChromaDB-backed vector store (persisted to disk)."""
-    db = chromadb.PersistentClient(path=config.CHROMA_PATH)
-    collection = db.get_or_create_collection(config.CHROMA_COLLECTION)
+def get_index_store():
+    """Returns ChromaDB vector store for knowledge base."""
+    db = chromadb.PersistentClient(path=config.CHROMA_INDEX_PATH)
+    collection = db.get_or_create_collection(config.CHROMA_INDEX_COLLECTION)
     return ChromaVectorStore(chroma_collection=collection)
 
 
@@ -87,6 +88,42 @@ def elements_to_nodes(chunks, source_file: str) -> list[TextNode]:
     return nodes
 
 
+def _delete_collection_safe(client, collection_name: str):
+    """Delete ChromaDB collection and clean up orphaned physical folder."""
+    collection_id = None
+    
+    try:
+        collection = client.get_collection(collection_name)
+        collection_id = collection.id
+    except Exception:
+        pass
+    
+    try:
+        client.delete_collection(collection_name)
+        print(f"[index_builder] Deleted collection: {collection_name}")
+    except Exception as e:
+        print(f"[index_builder] WARNING: delete_collection failed: {e}")
+    
+    if collection_id:
+        folder_path = Path(config.CHROMA_INDEX_PATH) / str(collection_id)
+        if folder_path.exists():
+            shutil.rmtree(folder_path)
+            print(f"[index_builder] Cleaned up folder: {collection_id}")
+    
+    _cleanup_orphaned_folders(client)
+
+
+def _cleanup_orphaned_folders(client):
+    """Remove any folders not referenced by active collections."""
+    active_ids = {col.id for col in client.list_collections()}
+    
+    chroma_path = Path(config.CHROMA_INDEX_PATH)
+    for entry in chroma_path.iterdir():
+        if entry.is_dir() and entry.name not in active_ids and entry.name != ".chroma":
+            shutil.rmtree(entry)
+            print(f"[index_builder] Removed orphaned folder: {entry.name}")
+
+
 def build_index(documents: list[Document]) -> VectorStoreIndex:
     """
     Full ingestion pipeline:
@@ -97,12 +134,8 @@ def build_index(documents: list[Document]) -> VectorStoreIndex:
     """
     configure_settings()
 
-    chroma_client = chromadb.PersistentClient(path=config.CHROMA_PATH)
-    try:
-        chroma_client.delete_collection(config.CHROMA_COLLECTION)
-        print("[index_builder] Cleared existing ChromaDB collection")
-    except Exception:
-        pass
+    chroma_client = chromadb.PersistentClient(path=config.CHROMA_INDEX_PATH)
+    _delete_collection_safe(chroma_client, config.CHROMA_INDEX_COLLECTION)
 
     all_nodes = []
     for doc in documents:
@@ -129,8 +162,8 @@ def build_index(documents: list[Document]) -> VectorStoreIndex:
     print(f"[index_builder] Total chunks: {len(all_nodes)}")
 
 
-    vector_store = get_vector_store()
-    storage_context = StorageContext.from_defaults(vector_store=vector_store)
+    index_store = get_index_store()
+    storage_context = StorageContext.from_defaults(vector_store=index_store)
 
     print(f"[index_builder] Embedding {len(all_nodes)} chunks into ChromaDB...")
     index = VectorStoreIndex(
@@ -145,7 +178,7 @@ def build_index(documents: list[Document]) -> VectorStoreIndex:
 
 def load_index() -> VectorStoreIndex:
     """Load existing index from ChromaDB."""
-    vector_store = get_vector_store()
-    index = VectorStoreIndex.from_vector_store(vector_store)
+    index_store = get_index_store()
+    index = VectorStoreIndex.from_vector_store(index_store)
     print("[index_builder] Index loaded from ChromaDB")
     return index
