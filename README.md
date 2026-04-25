@@ -43,6 +43,18 @@ STUDY-RAG-QnA-agent/
 
 ---
 
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [Architecture](#architecture)
+- [Storage](#storage)
+- [Configuration](#configuration)
+- [User Guide](#user-guide)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
+
+---
+
 ## Quick Start
 
 ### 1. Prerequisites
